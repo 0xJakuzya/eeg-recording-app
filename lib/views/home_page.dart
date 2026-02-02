@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:ble_app/controllers/ble_controller.dart';
+import 'package:ble_app/views/device_details.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
@@ -51,7 +52,7 @@ class HomePage extends StatelessWidget {
                   stream: controller.scanResults,
                   builder: (context, snapshot) {
                     if (snapshot.hasData) {
-                      final filteredDevices = snapshot.data!.where((result) => result.device.remoteId.str == '50:32:5F:BE:1D:D0').toList();
+                      final filteredDevices = snapshot.data!.where((result) => result.device.remoteId.str == '50:32:5F:BE:1D:D0').toList(); // kraken device
                       return ListView.builder(
                         shrinkWrap: true,
                         itemCount: filteredDevices.length,
@@ -65,7 +66,16 @@ class HomePage extends StatelessWidget {
                                 name.isEmpty ? 'Неизвестное устройство' : name,
                               ),
                               subtitle: Text(data.device.remoteId.str),
-                              onTap: () => controller.connectToDevices(data.device),
+                              trailing: ElevatedButton(
+                                onPressed: () async {
+                                  await controller.connectToDevices(data.device);
+                                },
+                                child: const Text('Connect', style: TextStyle(color: Colors.blue),),
+                              ),
+                              onTap: () async {
+                                await controller.connectToDevices(data.device);
+                                Get.to(() => DeviceDetailsPage(device: data.device));
+                              },
                             ),
                           );
                         },
