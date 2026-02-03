@@ -1,8 +1,8 @@
 # EEG Recording App
 
-Мобильное приложение для непрерывной записи электроэнцефалографических (ЭЭГ) данных с BLE-устройств в течение длительных сессий, с защитой от потери данных и мониторингом сигнала в реальном времени.
+Mobile application for real-time recording of EEG data from BLE devices during long sessions
 
-## Архитектура приложения
+## Application Architecture
 
 ```
 EEG Device (BLE)
