@@ -1,7 +1,6 @@
 // view for displaying the recording page
 // uses eeg_plots widget for the chart
 // todo: add recording functionality
-
 import 'package:flutter/material.dart';
 import 'package:ble_app/widgets/eeg_plots.dart';
 import 'dart:math';

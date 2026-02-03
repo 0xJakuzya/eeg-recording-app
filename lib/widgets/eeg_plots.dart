@@ -1,7 +1,5 @@
 // widget for displaying the power line chart
 // uses fl_chart for the chart
-
-
 import 'dart:math';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';

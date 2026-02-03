@@ -17,7 +17,7 @@ class SettingsPage extends StatelessWidget {
             title: const Text('Настройки Bluetooth'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () {
-              // TODO: open settings ble
+              // todo: open settings ble
             },
           ),
           const Divider(),
@@ -26,7 +26,7 @@ class SettingsPage extends StatelessWidget {
             title: const Text('Место хранения'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () {
-              // TODO: storage settigns
+              // todo: storage settigns
             },
           ),
           const Divider(),
@@ -35,7 +35,7 @@ class SettingsPage extends StatelessWidget {
             title: const Text('О приложении'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () {
-              // TODO: about application
+              // todo: about application
             },
           ),
         ],

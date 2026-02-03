@@ -1,7 +1,6 @@
 // view for displaying the list of devices
 // uses ble controller to scan for devices
 // filters devices by mac address
-
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';

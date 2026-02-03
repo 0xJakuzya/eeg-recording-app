@@ -1,3 +1,6 @@
+// view for displaying the main navigation
+// uses navigation controller to change the current index
+// uses the bottom navigation bar to navigate between the pages
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:ble_app/views/connection_page.dart';
@@ -10,18 +13,19 @@ class MainNavigation extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // put the navigation controller
     final controller = Get.put(NavigationController());
-
     return Obx(() => Scaffold(
       body: IndexedStack(
         index: controller.currentIndex.value,
         children: const [
-          ConnectionPage(),
-          RecordingPage(),
-          FilesPage(),
-          SettingsPage(),
+          ConnectionPage(), // connection page
+          RecordingPage(), // recording page
+          FilesPage(), // files page
+          SettingsPage(), // settings page
         ],
       ),
+      // bottom navigation bar
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: controller.currentIndex.value,
         onTap: controller.changeIndex,
@@ -37,9 +41,9 @@ class MainNavigation extends StatelessWidget {
   }
 }
 
+// controller for the main navigation
 class NavigationController extends GetxController {
   var currentIndex = 0.obs;
-  
   void changeIndex(int index) {
     currentIndex.value = index;
   }
