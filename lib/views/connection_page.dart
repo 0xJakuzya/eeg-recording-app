@@ -1,11 +1,14 @@
+// view for displaying the list of devices
+// uses ble controller to scan for devices
+// filters devices by mac address
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:ble_app/controllers/ble_controller.dart';
-import 'package:ble_app/views/device_details.dart';
+import 'package:ble_app/views/device_details_page.dart';
 
-class HomePage extends StatelessWidget {
-  const HomePage({super.key});
+class ConnectionPage extends StatelessWidget {
+  const ConnectionPage({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -21,7 +24,7 @@ class HomePage extends StatelessWidget {
                   height: 180,
                   color: Colors.blue,
                   child: Center(child: const Text(
-                    'EEG App',
+                    'BLE Devices',
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 30,
@@ -31,6 +34,7 @@ class HomePage extends StatelessWidget {
                 ),
                 const SizedBox(height: 20),
                 Center(
+                  // button for scanning devices
                   child: ElevatedButton(
                     onPressed: () => controller.scanDevices(),
                     style: ElevatedButton.styleFrom(
@@ -42,7 +46,7 @@ class HomePage extends StatelessWidget {
                       ),
                     ),
                     child: const Text(
-                      'Scan Devices',
+                      'Сканировать устройства',
                       style: TextStyle(fontSize: 20),
                     ),
                   ),
@@ -52,6 +56,7 @@ class HomePage extends StatelessWidget {
                   stream: controller.scanResults,
                   builder: (context, snapshot) {
                     if (snapshot.hasData) {
+                      // filter devices by mac address
                       final filteredDevices = snapshot.data!.where((result) => result.device.remoteId.str == '50:32:5F:BE:1D:D0').toList(); // kraken device
                       return ListView.builder(
                         shrinkWrap: true,
@@ -66,14 +71,35 @@ class HomePage extends StatelessWidget {
                                 name.isEmpty ? 'Неизвестное устройство' : name,
                               ),
                               subtitle: Text(data.device.remoteId.str),
-                              trailing: ElevatedButton(
-                                onPressed: () async {
-                                  await controller.connectToDevices(data.device);
-                                },
-                                child: const Text('Connect', style: TextStyle(color: Colors.blue),),
-                              ),
+                              trailing: Obx(() {
+                                final isConnected = controller.connectedDevice.value?.remoteId.str == data.device.remoteId.str;
+                                // button for connecting/disconnecting to the device
+                                return ElevatedButton(
+                                  onPressed: () async {
+                                    if (isConnected) {
+                                      // disconnect 
+                                      await controller.disconnect();
+                                    } else {
+                                      // connect 
+                                      await controller.connectToDevices(data.device);
+                                    }
+                                  },
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: isConnected ? Colors.red : Colors.grey,
+                                    foregroundColor: Colors.white,
+                                  ),
+                                  child: Text(
+                                    isConnected ? 'Отключить' : 'Подключить',
+                                    style: const TextStyle(color: Colors.white),
+                                  ),
+                                );
+                              }),
+                              // on tap, connect to the device and go to device details page
                               onTap: () async {
-                                await controller.connectToDevices(data.device);
+                                final isConnected = controller.connectedDevice.value?.remoteId.str == data.device.remoteId.str;
+                                if (!isConnected) {
+                                  await controller.connectToDevices(data.device);
+                                }
                                 Get.to(() => DeviceDetailsPage(device: data.device));
                               },
                             ),
@@ -81,7 +107,9 @@ class HomePage extends StatelessWidget {
                         },
                       );
                     } else {
-                      return const Center(child: Text('No devices found'));
+                      return const Center(
+                        child: Text('Нажимет кнопку для поиска устройств')
+                      );
                     }
                   },
                 ),
