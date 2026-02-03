@@ -1,44 +1,109 @@
-import 'package:flutter/material.dart';
+// view for displaying the recording page
+// uses eeg_plots widget for the chart
+// todo: add recording functionality
 
-class RecordingPage extends StatelessWidget {
+import 'package:flutter/material.dart';
+import 'package:ble_app/widgets/eeg_plots.dart';
+import 'dart:math';
+
+class RecordingPage extends StatefulWidget {
   const RecordingPage({super.key});
 
   @override
+  // create the state for the recording page
+  State<RecordingPage> createState() => _RecordingPageState();
+}
+
+class _RecordingPageState extends State<RecordingPage> {
+  bool isRecording = false;
+
+  @override
   Widget build(BuildContext context) {
+
+    // generate sample data for 1 channel
+    final Random random = Random();
+    final List<List<FFTDataPoint>> sampleData = [
+      List.generate(40, (i) {
+        final freq = i * 0.5;
+        final amplitude = random.nextDouble() * 10;
+        return FFTDataPoint(frequency: freq, amplitude: amplitude);
+      })
+    ];
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Запись'),
+        title: const Text('Запись ЭЭГ'),
         backgroundColor: Colors.blue,
       ),
-      body: Center(
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Icon(Icons.fiber_manual_record, size: 100, color: Colors.red),
-            const SizedBox(height: 20),
-            const Text('Запись ЭЭГ данных', style: TextStyle(fontSize: 24)),
-            const SizedBox(height: 40),
-            ElevatedButton.icon(
-              onPressed: () {
-                // TODO: start recording
-              },
-              icon: const Icon(Icons.play_arrow),
-              label: const Text('Начать запись'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green,
-                minimumSize: const Size(200, 50),
+            Card(
+              child: Padding(
+                // displaying the recording status indicator
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          isRecording ? Icons.fiber_manual_record : Icons.stop_circle,
+                          color: isRecording ? Colors.red : Colors.grey,
+                          size: 24,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          isRecording ? 'Идет запись' : 'Запись остановлена',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
             const SizedBox(height: 16),
+            // displaying the power line chart
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      'График сигнала',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 16),
+                    Container(
+                      height: 300,
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: PowerLineChart(channelData: sampleData),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            // button for starting/stopping the recording
             ElevatedButton.icon(
               onPressed: () {
-                // TODO: stop recording
+                setState(() {
+                  isRecording = !isRecording;
+                });
               },
-              icon: const Icon(Icons.stop),
-              label: const Text('Остановить запись'),
+              icon: Icon(isRecording ? Icons.stop : Icons.play_arrow),
+              label: Text(isRecording ? 'Остановить запись' : 'Начать запись'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red,
-                minimumSize: const Size(200, 50),
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                backgroundColor: isRecording ? Colors.red : Colors.green,
+                foregroundColor: Colors.white,
               ),
             ),
           ],
