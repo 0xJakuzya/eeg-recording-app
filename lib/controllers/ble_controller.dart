@@ -1,21 +1,52 @@
 // controller for bluetooth operations
 // handles scanning, connecting, and disconnecting from devices
 // uses flutter_blue_plus for bluetooth operations
+
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:get/get.dart';
 
-// controller for bluetooth operations
 class BleController extends GetxController {
 
   Rx<BluetoothDevice?> connectedDevice = Rx<BluetoothDevice?>(null);
   RxList<BluetoothService> services = <BluetoothService>[].obs;
+  RxBool isScanning = false.obs;
+  DateTime? _lastScanAt;
+
+  @override
+  void onReady() {
+    super.onReady();
+    scanDevices();
+  }
 
   // scan devices
   Future<void> scanDevices({String? serviceUuid}) async {
-    if (serviceUuid != null) {
-      await FlutterBluePlus.startScan(timeout: const Duration(seconds: 5), withServices: [Guid(serviceUuid)]);
-    } else {
-      await FlutterBluePlus.startScan(timeout: const Duration(seconds: 5));
+
+    if (isScanning.value) return;
+    final now = DateTime.now();
+    // prevent scanning too frequently
+    if (_lastScanAt != null && now.difference(_lastScanAt!) < const Duration(seconds: 3)) {
+      return;
+    }
+    // start scanning
+    isScanning.value = true;
+    try {
+      // stop scanning if already scanning
+      _lastScanAt = DateTime.now();
+      await FlutterBluePlus.stopScan();
+      // start scanning with specific service uuid if provided
+      if (serviceUuid != null) {
+        await FlutterBluePlus.startScan(
+          timeout: const Duration(seconds: 5),
+          withServices: [Guid(serviceUuid)],
+        );
+      } else {
+        await FlutterBluePlus.startScan(timeout: const Duration(seconds: 5));
+      }
+      // wait for 800ms to collect scan results
+      await Future.delayed(const Duration(milliseconds: 800));
+    } finally {
+      // stop scanning
+      isScanning.value = false;
     }
   }
 
@@ -26,6 +57,15 @@ class BleController extends GetxController {
   Future<void> connectToDevices(BluetoothDevice device) async {
     print(device.toString());
 
+    // disconnect from current device if already connected
+    final current = connectedDevice.value;
+    if (current != null && current.remoteId.str != device.remoteId.str) {
+      await current.disconnect();
+      connectedDevice.value = null;
+      services.clear();
+    }
+
+    // connect to device
     await device.connect(
       license: License.free,
       timeout: const Duration(seconds: 5),
@@ -33,10 +73,11 @@ class BleController extends GetxController {
 
     connectedDevice.value = device;
     
+    // discover services
     List<BluetoothService> discoveredServices = await device.discoverServices();
     services.value = discoveredServices;
 
-    // print device connection state in terminal
+    // listen for connection state
     device.connectionState.listen((state) {
       if (state == BluetoothConnectionState.connecting) {
         print('Device ${device.platformName} connecting...');

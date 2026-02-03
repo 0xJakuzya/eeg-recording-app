@@ -1,6 +1,7 @@
 // view for displaying the details of a connected device
 // shows the list of services and characteristics
 // uses ble controller to get the list of services and characteristics
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:ble_app/controllers/ble_controller.dart';

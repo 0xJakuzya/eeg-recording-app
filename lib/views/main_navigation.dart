@@ -1,6 +1,7 @@
 // view for displaying the main navigation
 // uses navigation controller to change the current index
 // uses the bottom navigation bar to navigate between the pages
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:ble_app/views/connection_page.dart';
