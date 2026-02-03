@@ -2,14 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:ble_app/controllers/ble_controller.dart';
-import 'package:ble_app/views/device_details.dart';
+import 'package:ble_app/views/device_details_page.dart';
 
-class HomePage extends StatelessWidget {
-  const HomePage({super.key});
+class ConnectionPage extends StatelessWidget {
+  const ConnectionPage({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(
+        title: const Text('EEG Application'),
+        backgroundColor: Colors.blue,
+      ),
       body: GetBuilder<BleController>(
         init: BleController(),
         builder: (controller) {
@@ -21,7 +25,7 @@ class HomePage extends StatelessWidget {
                   height: 180,
                   color: Colors.blue,
                   child: Center(child: const Text(
-                    'EEG App',
+                    'BLE Devices',
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 30,
@@ -42,7 +46,7 @@ class HomePage extends StatelessWidget {
                       ),
                     ),
                     child: const Text(
-                      'Scan Devices',
+                      'Сканировать устройства',
                       style: TextStyle(fontSize: 20),
                     ),
                   ),
@@ -70,7 +74,7 @@ class HomePage extends StatelessWidget {
                                 onPressed: () async {
                                   await controller.connectToDevices(data.device);
                                 },
-                                child: const Text('Connect', style: TextStyle(color: Colors.blue),),
+                                child: const Text('Подключить', style: TextStyle(color: Colors.blue),),
                               ),
                               onTap: () async {
                                 await controller.connectToDevices(data.device);
@@ -81,7 +85,9 @@ class HomePage extends StatelessWidget {
                         },
                       );
                     } else {
-                      return const Center(child: Text('No devices found'));
+                      return const Center(
+                        child: Text('Нажимет кнопку для поиска устройств')
+                      );
                     }
                   },
                 ),

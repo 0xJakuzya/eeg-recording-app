@@ -22,6 +22,7 @@ class DeviceDetailsPage extends StatelessWidget {
               Get.back();
             },
           ),
+    
         ],
       ),
       body: Obx(() {
