@@ -1,12 +1,13 @@
-// view for displaying the list of devices
-// uses ble controller to scan for devices
-
+/// view for displaying the list of bluetooth devices
+/// shows connected device and available devices from scan results.
+/// allows connecting and disconnecting from devices using ble controller.
 
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:ble_app/controllers/ble_controller.dart';
 import 'package:ble_app/views/device_details_page.dart';
+import 'package:ble_app/widgets/device_list_tile.dart';
 
 class ConnectionPage extends StatelessWidget {
   const ConnectionPage({super.key});
@@ -22,6 +23,7 @@ class ConnectionPage extends StatelessWidget {
             backgroundColor: Colors.blue,
             foregroundColor: Colors.white,
             actions: [
+              // scan button with loading indicator
               Obx(() {
                 final scanning = controller.isScanning.value;
                 return IconButton(
@@ -46,10 +48,7 @@ class ConnectionPage extends StatelessWidget {
               const SizedBox(height: 20),
               Obx(() {
                 final device = controller.connectedDevice.value;
-                if (device == null) {
-                  return const SizedBox.shrink();
-                }
-                final name = device.platformName.trim();
+                if (device == null) return const SizedBox.shrink();
                 return Column(
                   children: [
                     const Padding(
@@ -63,29 +62,17 @@ class ConnectionPage extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    Card(
-                      elevation: 2,
-                      child: ListTile(
-                        title: Text(
-                          name.isEmpty ? 'Неизвестное устройство' : name,
-                        ),
-                        subtitle: Text(device.remoteId.str),
-                        trailing: IconButton(
-                          icon: const Icon(Icons.info_outline),
-                          onPressed: () {
-                            Get.to(() => DeviceDetailsPage(device: device));
-                          },
-                          tooltip: 'Характеристики устройства',
-                        ),
-                        onTap: () async {
-                          await controller.disconnect();
-                        },
-                      ),
+                    DeviceListTile(
+                      device: device,
+                      isConnected: true,
+                      onTap: () => controller.disconnect(),
+                      onDetailsPressed: () => Get.to(() => DeviceDetailsPage(device: device)),
                     ),
                     const SizedBox(height: 16),
                   ],
                 );
               }),
+              // devices list header
               const Padding(
                 padding: EdgeInsets.symmetric(horizontal: 16),
                 child: Align(
@@ -97,6 +84,7 @@ class ConnectionPage extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 12),
+              // devices list from scan results
               Expanded(
                 child: Obx(() {
                   final connectedId = controller.connectedDevice.value?.remoteId.str;
@@ -104,6 +92,7 @@ class ConnectionPage extends StatelessWidget {
                     stream: controller.scanResults,
                     builder: (context, snapshot) {
                       if (snapshot.hasData) {
+                        // filter out devices without names and already connected device
                         final devices = snapshot.data!
                             .where((result) =>
                                 result.device.platformName.trim().isNotEmpty &&
@@ -120,45 +109,33 @@ class ConnectionPage extends StatelessWidget {
                           itemBuilder: (context, index) {
                             final data = devices[index];
                             final name = data.device.platformName.trim();
+                            // listen to connection state changes
                             return StreamBuilder<BluetoothConnectionState>(
                               stream: data.device.connectionState,
                               initialData: BluetoothConnectionState.disconnected,
                               builder: (context, snapshot) {
                                 final isConnected = (controller.connectedDevice.value?.remoteId.str == data.device.remoteId.str) ||
                                     (snapshot.data == BluetoothConnectionState.connected);
-                                return Card(
-                                  elevation: 2,
-                                  child: ListTile(
-                                    title: Text(
-                                      name.isEmpty ? 'Неизвестное устройство' : name,
-                                    ),
-                                    subtitle: Text(data.device.remoteId.str),
-                                    trailing: isConnected
-                                        ? IconButton(
-                                            icon: const Icon(Icons.info_outline),
-                                            onPressed: () {
-                                              Get.to(() => DeviceDetailsPage(device: data.device));
-                                            },
-                                            tooltip: 'Характеристики устройства',
-                                          )
-                                        : null,
-                                    // on tap, connect/disconnect to the device
-                                    onTap: () async {
-                                      if (isConnected) {
-                                        // disconnect
-                                        await controller.disconnect();
-                                      } else {
-                                        // connect
-                                        await controller.connectToDevices(data.device);
-                                      }
-                                    },
-                                  ),
+                                return DeviceListTile(
+                                  device: data.device,
+                                  isConnected: isConnected,
+                                  onTap: () async {
+                                    if (isConnected) {
+                                      await controller.disconnect();
+                                    } else {
+                                      await controller.connectToDevices(data.device);
+                                    }
+                                  },
+                                  onDetailsPressed: isConnected
+                                      ? () => Get.to(() => DeviceDetailsPage(device: data.device))
+                                      : null,
                                 );
                               },
                             );
                           },
                         );
                       } else {
+                        // no scan data 
                         return const Center(
                           child: Text('Нажмите кнопку для поиска устройств'),
                         );

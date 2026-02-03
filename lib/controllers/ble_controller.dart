@@ -1,16 +1,17 @@
-// controller for bluetooth operations
-// handles scanning, connecting, and disconnecting from devices
-// uses flutter_blue_plus for bluetooth operations
+/// controller for bluetooth low energy operations
+/// handles scanning, connecting, and disconnecting from devices.
+/// uses flutter_blue_plus for bluetooth operations and getx for state management.
 
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:get/get.dart';
+import 'package:ble_app/core/ble_constants.dart';
 
 class BleController extends GetxController {
 
   Rx<BluetoothDevice?> connectedDevice = Rx<BluetoothDevice?>(null);
-  RxList<BluetoothService> services = <BluetoothService>[].obs;
-  RxBool isScanning = false.obs;
-  DateTime? _lastScanAt;
+  RxList<BluetoothService> services = <BluetoothService>[].obs; 
+  RxBool isScanning = false.obs; 
+  DateTime? lastScanAt; 
 
   @override
   void onReady() {
@@ -24,26 +25,24 @@ class BleController extends GetxController {
     if (isScanning.value) return;
     final now = DateTime.now();
     // prevent scanning too frequently
-    if (_lastScanAt != null && now.difference(_lastScanAt!) < const Duration(seconds: 3)) {
+    if (lastScanAt != null && now.difference(lastScanAt!) < BleConstants.minScanInterval) {
       return;
     }
     // start scanning
     isScanning.value = true;
     try {
-      // stop scanning if already scanning
-      _lastScanAt = DateTime.now();
-      await FlutterBluePlus.stopScan();
+      lastScanAt = DateTime.now();
+      await FlutterBluePlus.stopScan(); // ensure no previous scan is running
       // start scanning with specific service uuid if provided
       if (serviceUuid != null) {
         await FlutterBluePlus.startScan(
-          timeout: const Duration(seconds: 5),
+          timeout: BleConstants.scanTimeout,
           withServices: [Guid(serviceUuid)],
         );
       } else {
-        await FlutterBluePlus.startScan(timeout: const Duration(seconds: 5));
+        await FlutterBluePlus.startScan(timeout: BleConstants.scanTimeout);
       }
-      // wait for 800ms to collect scan results
-      await Future.delayed(const Duration(milliseconds: 800));
+      await Future.delayed(BleConstants.scanResultsCollectDelay);
     } finally {
       // stop scanning
       isScanning.value = false;
@@ -68,7 +67,7 @@ class BleController extends GetxController {
     // connect to device
     await device.connect(
       license: License.free,
-      timeout: const Duration(seconds: 5),
+      timeout: BleConstants.connectTimeout,
     );
 
     connectedDevice.value = device;

@@ -1,5 +1,6 @@
-// сontroller for recording EEG data
-// handles ble data reception, parsing, and csv writing
+/// controller for recording eeg data
+/// handles ble data reception, parsing, and csv writing.
+/// manages recording state, sample buffering, and real-time data visualization.
 
 import 'dart:async';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
@@ -7,28 +8,28 @@ import 'package:get/get.dart';
 import 'package:ble_app/controllers/ble_controller.dart';
 import 'package:ble_app/controllers/settings_controller.dart';
 import 'package:ble_app/models/eeg_sample.dart';
-import 'package:ble_app/services/csv_stream_writer.dart';
+import 'package:ble_app/core/recording_constants.dart';
+import 'package:ble_app/services/csv_stream_service.dart';
 import 'package:ble_app/services/eeg_parser_service.dart';
 
 class RecordingController extends GetxController {
 
-  final BleController bleController = Get.find<BleController>();
-  final SettingsController settingsController = Get.find<SettingsController>();
+  final BleController bleController = Get.find<BleController>(); //ble controller
+  final SettingsController settingsController = Get.find<SettingsController>(); //settings controller
   
-  late CsvStreamWriter csvWriter;
-  late EegParserService parser;
+  late CsvStreamWriter csvWriter; //writing to csv
+  late EegParserService parser; //parsing bytes
 
-  RxBool isRecording = false.obs;
-  Rx<String?> currentFilePath = Rx<String?>(null);
-  RxInt sampleCount = 0.obs;
-  Rx<DateTime?> recordingStartTime = Rx<DateTime?>(null);
-  Rx<Duration> recordingDuration = Duration.zero.obs;
+  RxBool isRecording = false.obs; //recording state
+  Rx<String?> currentFilePath = Rx<String?>(null); //current file path
+  RxInt sampleCount = 0.obs; //sample count
+  Rx<DateTime?> recordingStartTime = Rx<DateTime?>(null); //recording start time
+  Rx<Duration> recordingDuration = Duration.zero.obs; //recording duration
 
-  RxList<EegSample> realtimeBuffer = <EegSample>[].obs;
-  static const int bufferMaxSize = 200; 
+  RxList<EegSample> realtimeBuffer = <EegSample>[].obs; //realtime buffer
 
-  StreamSubscription? dataSubscription;
-  Timer? durationTimer;
+  StreamSubscription? dataSubscription; //subscription for data stream
+  Timer? durationTimer; //timer for recording duration
 
   @override
   void onInit() {
@@ -36,6 +37,7 @@ class RecordingController extends GetxController {
     initServices();
   }
 
+  // initialize services
   void initServices() {
     final channels = settingsController.channelCount.value;
     csvWriter = CsvStreamWriter(channelCount: channels);
@@ -53,59 +55,65 @@ class RecordingController extends GetxController {
   Future<void> startRecording() async {
 
     initServices();
-    final characteristic = await findEegCharacteristic();
-    final timestamp = DateTime.now().millisecondsSinceEpoch;
-    final channels = settingsController.channelCount.value;
-    final filename = 'eeg_${channels}ch_$timestamp.csv';
     
+    // find the eeg characteristic
+    final characteristic = await findEegCharacteristic(); 
+
+    // generate filename
+    final timestamp = DateTime.now().millisecondsSinceEpoch; 
+    final channels = settingsController.channelCount.value; 
+    final filename = 'eeg_${channels}ch_$timestamp.csv'; 
+
     await csvWriter.startRecording(filename);
-    currentFilePath.value = await csvWriter.getFilePath();
+    currentFilePath.value = csvWriter.filePath; 
 
-    await characteristic?.setNotifyValue(true); 
-    dataSubscription = characteristic?.lastValueStream.listen(onDataReceived);
+    await characteristic?.setNotifyValue(true); // set notify value 
+    dataSubscription = characteristic?.lastValueStream.listen(onDataReceived); // listen to data stream 
 
-    isRecording.value = true;
-    recordingStartTime.value = DateTime.now();
-    sampleCount.value = 0;
-    realtimeBuffer.clear();
+    isRecording.value = true; // set recording state 
+    recordingStartTime.value = DateTime.now(); // set recording start time
+    sampleCount.value = 0; // set sample count 
+    realtimeBuffer.clear(); // clear realtime buffer
 
-    startDurationTimer();
+    startDurationTimer(); // start duration timer
     print('Recording started: $filename');
   }
 
   // stop recording
   Future<void> stopRecording() async {
-    await dataSubscription?.cancel();
+    
+    await dataSubscription?.cancel(); // cancel data subscription
     dataSubscription = null;
 
-    durationTimer?.cancel();
+    durationTimer?.cancel(); // stop duration timer
     durationTimer = null;
 
-    await csvWriter.stopRecording(); 
+    await csvWriter.stopRecording(); // stop write to csv
 
-    final samples = sampleCount.value;
-    final path = currentFilePath.value;
+    final samples = sampleCount.value; // get sample count
+    final path = currentFilePath.value; // get current file path
 
-    isRecording.value = false;
+    isRecording.value = false; // update recording state
     
     print('Recording stopped. Total samples: $samples');
     print('File saved: $path');
 
+    // wait for 3 seconds
+    await Future.delayed(RecordingConstants.postStopDelay); 
 
-    await Future.delayed(const Duration(seconds: 3));
-    
+    // reset values    
     currentFilePath.value = null;
     recordingStartTime.value = null;
     recordingDuration.value = Duration.zero;
   }
 
   // parse bytes and write to csv
-  void onDataReceived(List<int> bytes) {
-    final sample = parser.parseBytes(bytes);
-    csvWriter.writeSample(sample);
+  void onDataReceived(List<int> bytes) { 
+    final sample = parser.parseBytes(bytes); 
+    csvWriter.writeSample(sample); 
     sampleCount.value++;
     realtimeBuffer.add(sample);
-    if (realtimeBuffer.length > bufferMaxSize) {
+    if (realtimeBuffer.length > RecordingConstants.realtimeBufferMaxSize) {
       realtimeBuffer.removeAt(0);
     }
   }
@@ -126,7 +134,7 @@ class RecordingController extends GetxController {
 
   // start duration timer
   void startDurationTimer() {
-    durationTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+    durationTimer = Timer.periodic(RecordingConstants.durationTimerInterval, (timer) {
       if (recordingStartTime.value != null) {
         recordingDuration.value = DateTime.now().difference(recordingStartTime.value!);
       }
@@ -139,6 +147,7 @@ class RecordingController extends GetxController {
     final hours = duration.inHours.toString().padLeft(2, '0');
     final minutes = (duration.inMinutes % 60).toString().padLeft(2, '0');
     final seconds = (duration.inSeconds % 60).toString().padLeft(2, '0');
+    // return formatted duration as HH:MM:SS
     return '$hours:$minutes:$seconds';
   }
 
@@ -150,17 +159,5 @@ class RecordingController extends GetxController {
     final elapsed = DateTime.now().difference(recordingStartTime.value!);
     if (elapsed.inSeconds == 0) return 0.0;
     return sampleCount.value / elapsed.inSeconds;
-  }
-
-  List<List<double>> getRealtimeChartData() {
-    final channelCount = settingsController.channelCount.value;
-    final result = List.generate(channelCount, (_) => <double>[]);
-    
-    for (final sample in realtimeBuffer) {
-      for (int ch = 0; ch < channelCount && ch < sample.channels.length; ch++) {
-        result[ch].add(sample.channels[ch]);
-      }
-    }
-    return result;
   }
 }

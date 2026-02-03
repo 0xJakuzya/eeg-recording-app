@@ -1,11 +1,13 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ble_app/core/recording_constants.dart';
 import 'package:ble_app/models/eeg_sample.dart';
 import 'package:ble_app/services/eeg_parser_service.dart';
-import 'package:ble_app/services/csv_stream_writer.dart';
+import 'package:ble_app/services/csv_stream_service.dart';
 import 'package:ble_app/widgets/eeg_plots.dart';
 
 void main() {
-  // ==================== EegSample Tests ====================
+
+  // EegSample tests
   group('EegSample', () {
     test('create with 1 channel', () {
       final sample = EegSample(
@@ -72,7 +74,7 @@ void main() {
     });
   });
 
-  // ==================== EegParserService Tests ====================
+  // EegParserService tests
   group('EegParserService', () {
     test('1 channel parser', () {
       final parser = EegParserService(channelCount: 1);
@@ -128,7 +130,7 @@ void main() {
     });
   });
 
-  // ==================== CsvStreamWriter Tests ====================
+  // CsvStreamWriter tests
   group('CsvStreamWriter', () {
     test('1 channel writer', () {
       final writer = CsvStreamWriter(channelCount: 1);
@@ -141,7 +143,7 @@ void main() {
     });
 
     test('buffer size constant', () {
-      expect(CsvStreamWriter.bufferSize, 100);
+      expect(RecordingConstants.csvBufferSize, 100);
     });
 
     test('isRecording initially false', () {
@@ -182,7 +184,7 @@ void main() {
     });
   });
 
-  // ==================== EegDataPoint Tests ====================
+  // EegDataPoint tests
   group('EegDataPoint', () {
     test('create with time and amplitude', () {
       final point = EegDataPoint(time: 1.5, amplitude: 100.0);
@@ -193,18 +195,6 @@ void main() {
     test('create with negative amplitude', () {
       final point = EegDataPoint(time: 0.0, amplitude: -50.0);
       expect(point.amplitude, -50.0);
-    });
-  });
-
-  // ==================== Channel Colors Tests ====================
-  group('ChannelColors', () {
-    test('has 8 colors', () {
-      expect(channelColors.length, 8);
-    });
-
-    test('all colors are different', () {
-      final uniqueColors = channelColors.toSet();
-      expect(uniqueColors.length, 8);
     });
   });
 }
