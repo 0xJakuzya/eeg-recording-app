@@ -1,9 +1,11 @@
 // view for displaying the details of a connected device
 // shows the list of services and characteristics
 // uses ble controller to get the list of services and characteristics
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:ble_app/controllers/ble_controller.dart';
+import 'package:ble_app/widgets/characteristic_tile.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 
 
@@ -38,48 +40,9 @@ class DeviceDetailsPage extends StatelessWidget {
             return ExpansionTile(
               title: Text('Service: ${service.uuid}'),
               subtitle: Text('${service.characteristics.length} characteristics'),
-              children: service.characteristics.map((char) {
-                // list of properties for the characteristic
-                return ListTile(
-                  title: Text('Characteristic: ${char.uuid}'),
-                  subtitle: Text('Properties: ${char.properties}'),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (char.properties.read)
-                        // button for reading the characteristic
-                        IconButton(
-                          icon: const Icon(Icons.download),
-                          onPressed: () async {
-                            var value = await char.read();
-                            print('Read: $value');
-                          },
-                        ),
-                      if (char.properties.write)
-                        // button for writing to the characteristic
-                        IconButton(
-                          icon: const Icon(Icons.upload),
-                          onPressed: () async {
-                            await char.write([0x01]);
-                            print('Written');
-                          },
-                        ),
-                      if (char.properties.notify)
-                        // button for subscribing to the characteristic
-                        IconButton(
-                          icon: const Icon(Icons.notifications),
-                          onPressed: () async {
-                            await char.setNotifyValue(true);
-                            // listen to the characteristic
-                            char.lastValueStream.listen((value) {
-                              print('Notification: $value');
-                            });
-                          },
-                        ),
-                    ],
-                  ),
-                );
-              }).toList(),
+              children: service.characteristics
+                  .map((char) => CharacteristicTile(characteristic: char))
+                  .toList(),
             );
           },
         );
