@@ -1,17 +1,72 @@
 # EEG Recording App
 
-Mobile application for real-time recording of EEG data from BLE devices during long sessions
+Мобильное приложение для регистрации ЭЭГ-сигналов с 8-канальных BLE-устройств. Обеспечивает подключение по Bluetooth Low Energy, приём и визуализацию данных в реальном времени, а также потоковую запись сигналов в CSV-файлы с защитой от потери данных. Поддерживается одновременная работа от 1 до 8 каналов и настройка параметров записи
 
-## Application Architecture
+## Основные возможности
+
+- **Подключение к BLE устройствам** — сканирование и подключение к EEG устройствам через BLE
+- **Запись данных в реальном времени** — потоковая запись данных в CSV файлы с защитой от потери данных
+- **Визуализация сигналов** — отображение EEG сигналов в реальном времени с поддержкой скользящего окна 
+- **Поддержка множественных каналов** — запись и визуализация от 1 до 8 каналов одновременно
+- **Управление файлами** — просмотр и управление записанными CSV файлами
+- **Настройки** — конфигурация количества каналов и других параметров записи
+
+## Архитектура приложения
 
 ```
 EEG Device (BLE)
     ↓ 
 BleController (Subscribe)
     ↓
-DataParser (Bytes → Float)
+EegParserService (Bytes → EegSample)
     ↓ 
-CsvWriter (Append + Flush)
+CsvStreamWriter (Append + Periodic Flush)
     ↓ 
-Storage(/Documents/EEG_Records/)
+File Storage (/Documents/)
 ```
+
+### Поток данных
+
+1. **Прием данных** — `BleController` подписывается на BLE characteristic и получает сырые байты
+2. **Парсинг** — `EegParserService` преобразует байты в структурированные данные 
+3. **Запись** — `CsvStreamWriter` записывает данные в CSV файл в режиме append с буферизацией
+4. **Визуализация** — `RecordingPage` отображает данные из буфера в реальном времени
+
+## Установка и запуск
+
+1. Убедитесь, что у вас установлен Flutter SDK (3.10.7+)
+2. Установите зависимости:
+   ```bash
+   flutter pub get
+   ```
+3. Запустите приложение:
+   ```bash
+   flutter run
+   ```
+
+## Структура проекта
+
+```
+lib/
+├── controllers/          # управление состоянием 
+│   ├── ble_controller.dart          # ble подключение и сканирование
+│   ├── recording_controller.dart   # управление записью данных
+│   └── settings_controller.dart     # настройки приложения
+├── services/             # бизнес-логика
+│   ├── csv_stream_service.dart     # потоковая запись в CSV
+│   └── eeg_parser_service.dart      # парсинг BLE байтов
+├── models/               # модели данных
+│   └── eeg_sample.dart              # модель сэмпла EEG
+├── views/                # UI страницы
+│   ├── connection_page.dart         # подключение к устройствам
+│   ├── recording_page.dart          # запись и визуализация
+│   ├── files_page.dart              # управление файлами
+│   └── settings_page.dart           # настройки
+├── widgets/              # виджеты
+│   ├── eeg_plots.dart               # графики сигналов
+│   └── recording_status_card.dart   # статус записи
+└── core/                 # константы и конфигурация
+    ├── ble_constants.dart
+    └── recording_constants.dart
+```
+
