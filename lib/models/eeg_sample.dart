@@ -4,8 +4,8 @@
 
 class EegSample {
 
-  final DateTime timestamp; // timestamp when the sample was recorded
-  final List<double> channels; // voltage values for each channel
+  final DateTime timestamp; // timestamp recorder
+  final List<double> channels; // voltage values 
 
   // constructor with validation
   EegSample({
@@ -14,7 +14,8 @@ class EegSample {
   }) : assert(channels.isNotEmpty && channels.length <= 8, 
              'EEG sample must have 1-8 channels');
 
-  int get channelCount => channels.length; // number of channels in the sample
+  // number of channels in the sample
+  int get channelCount => channels.length; 
 
   // convert sample to csv line format
   String toCsvLine() {

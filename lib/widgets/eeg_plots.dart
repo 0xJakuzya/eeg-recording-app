@@ -1,6 +1,8 @@
 // widget for displaying eeg line chart
 // supports 1-8 channels
 
+import 'dart:math' as math;
+
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
@@ -26,57 +28,133 @@ class EegLineChart extends StatelessWidget {
 
   final List<List<EegDataPoint>> channelData; 
   final Set<int> visibleChannels;
+  final double windowSeconds;
 
   const EegLineChart({
     super.key,
     required this.channelData,
     required this.visibleChannels,
+    required this.windowSeconds,
   });
 
   @override
   Widget build(BuildContext context) {
 
     final int numChannels = channelData.length;
-    final List<LineChartBarData> lineBarsData = [];
-    
-    for (int ch = 0; ch < numChannels; ch++) {
-      if (!visibleChannels.contains(ch)) continue;
-      
-      final spots = channelData[ch].map((point) => FlSpot(point.time, point.amplitude)).toList();
-      lineBarsData.add(LineChartBarData(
-        spots: spots,
-        isCurved: true,
-        color: channelColors[ch % channelColors.length],
-        dotData: const FlDotData(show: false),
-        belowBarData: BarAreaData(show: false),
-        barWidth: 1.5,
-      ));
+
+    final List<int> visibleList = visibleChannels
+        .where((ch) => ch >= 0 && ch < numChannels)
+        .toList()
+      ..sort();
+
+    if (visibleList.isEmpty) {
+      return const Center(child: Text('Нет выбранных каналов'));
     }
+
+    final Map<int, double> channelMaxAbs = {};
+    for (final ch in visibleList) {
+      double maxAbs = 0;
+      for (final point in channelData[ch]) {
+        maxAbs = math.max(maxAbs, point.amplitude.abs());
+      }
+      channelMaxAbs[ch] = maxAbs == 0 ? 1 : maxAbs;
+    }
+
+
+    const double channelStep = 2.0;
+    const double halfHeight = 0.8; 
+
+    final List<LineChartBarData> lineBarsData = [];
+
+    double maxTime = 0;
+    final firstChannelPoints = channelData[visibleList.first];
+    if (firstChannelPoints.isNotEmpty) {
+      maxTime = firstChannelPoints.last.time;
+    }
+    final double effectiveWindow = windowSeconds <= 0 ? 1.0 : windowSeconds;
+    final double minWindowTime = (maxTime - effectiveWindow).clamp(0, maxTime);
+
+    for (int order = 0; order < visibleList.length; order++) {
+      final int ch = visibleList[order];
+      final double centerY = order * channelStep;
+      final double maxAbs = channelMaxAbs[ch]!;
+
+      final spots = channelData[ch]
+          .where((point) => point.time >= minWindowTime)
+          .map(
+            (point) => FlSpot(
+              point.time - minWindowTime,
+              centerY + (point.amplitude / maxAbs) * halfHeight,
+            ),
+          )
+          .toList();
+
+      lineBarsData.add(
+        LineChartBarData(
+          spots: spots,
+          isCurved: true,
+          color: channelColors[ch % channelColors.length],
+          dotData: const FlDotData(show: false),
+          belowBarData: BarAreaData(show: false),
+          barWidth: 1.5,
+        ),
+      );
+    } 
+    final Map<double, String> yLabels = {};
+    for (int order = 0; order < visibleList.length; order++) {
+      final int ch = visibleList[order];
+      final double centerY = order * channelStep;
+      yLabels[centerY] = 'CH${ch + 1}';
+    }
+
+    final double minY = -channelStep;
+    final double maxY = (visibleList.length - 1) * channelStep + channelStep;
+
+    final double minX = 0;
+    final double maxX = effectiveWindow;
 
     return Container(
       padding: const EdgeInsets.all(8),
       child: LineChart(
         LineChartData(
           lineBarsData: lineBarsData,
+          minY: minY,
+          maxY: maxY,
+          minX: minX,
+          maxX: maxX,
           titlesData: FlTitlesData(
             bottomTitles: AxisTitles(
               axisNameWidget: const Text('Время (с)', style: TextStyle(fontSize: 12)),
               sideTitles: SideTitles(
                 showTitles: true,
                 reservedSize: 30,
-                interval: 2, // 10s graph every 2 seconds
+                interval: (maxX / 5).clamp(0.5, double.infinity),
                 getTitlesWidget: (value, meta) {
                   return Text(value.toStringAsFixed(0), style: const TextStyle(fontSize: 10));
                 },
               ),
             ),
             leftTitles: AxisTitles(
-              axisNameWidget: const Text('мкВ', style: TextStyle(fontSize: 12)),
+              axisNameWidget: const Text('Каналы', style: TextStyle(fontSize: 12)),
               sideTitles: SideTitles(
                 showTitles: true,
-                reservedSize: 40,
+                reservedSize: 48,
                 getTitlesWidget: (value, meta) {
-                  return Text(value.toStringAsFixed(0), style: const TextStyle(fontSize: 10));
+                  const double threshold = 0.4;
+                  double? closestKey;
+                  for (final key in yLabels.keys) {
+                    if ((value - key).abs() < threshold) {
+                      closestKey = key;
+                      break;
+                    }
+                  }
+                  if (closestKey == null) {
+                    return const SizedBox.shrink();
+                  }
+                  return Text(
+                    yLabels[closestKey]!,
+                    style: const TextStyle(fontSize: 10),
+                  );
                 },
               ),
             ),

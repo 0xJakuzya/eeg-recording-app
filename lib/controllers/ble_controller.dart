@@ -31,9 +31,10 @@ class BleController extends GetxController {
     // start scanning
     isScanning.value = true;
     try {
+      // 
       lastScanAt = DateTime.now();
-      await FlutterBluePlus.stopScan(); // ensure no previous scan is running
-      // start scanning with specific service uuid if provided
+      await FlutterBluePlus.stopScan(); 
+      // start scanning with specific service uuid 
       if (serviceUuid != null) {
         await FlutterBluePlus.startScan(
           timeout: BleConstants.scanTimeout,

@@ -1,6 +1,6 @@
-/// service for parsing raw ble bytes into eeg samples
-/// converts binary data from bluetooth device into eeg sample objects.
-/// supports configurable channel count (1-8 channels) with 2 bytes per channel.
+/// Service for parsing raw BLE bytes into EEG samples.
+/// Device protocol: 1 byte counter + 1 byte per channel (signed int8).
+/// Supports configurable channel count (1–8 channels).
 
 import 'package:ble_app/core/recording_constants.dart';
 import 'package:ble_app/models/eeg_sample.dart';
@@ -8,7 +8,7 @@ import 'package:ble_app/models/eeg_sample.dart';
 class EegParserService {
   
   final int channelCount; // eeg channels to parse
-  EegParserService({this.channelCount = 1}); // default to 1 channel
+  EegParserService({this.channelCount = 1}); // default 1 channel
   int get expectedPacketSize => channelCount * RecordingConstants.bytesPerChannel; 
 
   // parse raw bytes into eeg sample
@@ -16,16 +16,30 @@ class EegParserService {
 
     final channels = <double>[]; // list of channels
     final timestamp = DateTime.now(); // current timestamp
+    if (bytes.length <= 1) {
+      // no channel data, return empty sample
+      return EegSample(timestamp: timestamp, channels: channels);
+    }
 
-    for (int i = 0; i < channelCount; i++) {
-      final byteIndex = i * RecordingConstants.bytesPerChannel;
+    // first byte is a packet counter, skip it
+    final availableBytes = bytes.length - 1;
+    final maxChannelsFromPacket = availableBytes ~/ RecordingConstants.bytesPerChannel;
+    final parsedChannelCount = maxChannelsFromPacket < channelCount
+        ? maxChannelsFromPacket
+        : channelCount;
 
-      // combine two bytes into 16-bit signed integer 
-      int value = bytes[byteIndex] | (bytes[byteIndex + 1] << 8);
-      if (value > 32767) { value -= 65536; } // convert to signed integer
-      final voltage = value.toDouble(); // convert to double voltage
-      channels.add(voltage); // add to channels
-    } 
-    return EegSample(timestamp: timestamp, channels: channels); // return eeg sample with timestamp and channels
+    for (int i = 0; i < parsedChannelCount; i++) {
+      final byteIndex = 1 + i * RecordingConstants.bytesPerChannel;
+      int value = bytes[byteIndex];
+
+      // convert unsigned byte to signed int8 (-128..127)
+      if (value > 127) {
+        value -= 256;
+      }
+
+      channels.add(value.toDouble());
+    }
+    // return eeg sample with timestamp and channels
+    return EegSample(timestamp: timestamp, channels: channels); 
   }
 }

@@ -9,6 +9,7 @@ import 'package:ble_app/controllers/ble_controller.dart';
 import 'package:ble_app/controllers/settings_controller.dart';
 import 'package:ble_app/models/eeg_sample.dart';
 import 'package:ble_app/core/recording_constants.dart';
+import 'package:ble_app/core/ble_constants.dart';
 import 'package:ble_app/services/csv_stream_service.dart';
 import 'package:ble_app/services/eeg_parser_service.dart';
 
@@ -17,19 +18,20 @@ class RecordingController extends GetxController {
   final BleController bleController = Get.find<BleController>(); //ble controller
   final SettingsController settingsController = Get.find<SettingsController>(); //settings controller
   
-  late CsvStreamWriter csvWriter; //writing to csv
-  late EegParserService parser; //parsing bytes
+  late CsvStreamWriter csvWriter; 
+  late EegParserService parser; 
 
-  RxBool isRecording = false.obs; //recording state
-  Rx<String?> currentFilePath = Rx<String?>(null); //current file path
-  RxInt sampleCount = 0.obs; //sample count
-  Rx<DateTime?> recordingStartTime = Rx<DateTime?>(null); //recording start time
-  Rx<Duration> recordingDuration = Duration.zero.obs; //recording duration
+  RxBool isRecording = false.obs; 
+  Rx<String?> currentFilePath = Rx<String?>(null); 
+  RxInt sampleCount = 0.obs; 
+  Rx<DateTime?> recordingStartTime = Rx<DateTime?>(null); 
+  Rx<Duration> recordingDuration = Duration.zero.obs; 
 
-  RxList<EegSample> realtimeBuffer = <EegSample>[].obs; //realtime buffer
+  RxList<EegSample> realtimeBuffer = <EegSample>[].obs; 
 
-  StreamSubscription? dataSubscription; //subscription for data stream
-  Timer? durationTimer; //timer for recording duration
+  StreamSubscription? dataSubscription; 
+  Timer? durationTimer; 
+  int _debugPrintCount = 0; // temporary debug counter for channel data
 
   @override
   void onInit() {
@@ -55,9 +57,50 @@ class RecordingController extends GetxController {
   Future<void> startRecording() async {
 
     initServices();
-    
-    // find the eeg characteristic
-    final characteristic = await findEegCharacteristic(); 
+    _debugPrintCount = 0; // reset debug counter for new session
+
+    // locate EEG data and config characteristics by UUID
+    BluetoothCharacteristic? dataChar;
+    BluetoothCharacteristic? configChar;
+    for (final service in bleController.services) {
+      final serviceUuid = service.uuid.str;
+      if (serviceUuid == BleConstants.eegServiceUuid) {
+        for (final c in service.characteristics) {
+          if (c.uuid.str == BleConstants.eegDataCharUuid) {
+            dataChar = c;
+          }
+        }
+      }
+      if (serviceUuid == BleConstants.eegConfigServiceUuid) {
+        for (final c in service.characteristics) {
+          if (c.uuid.str == BleConstants.eegConfigCharUuid) {
+            configChar = c;
+          }
+        }
+      }
+    }
+
+    // ensure we have a data characteristic
+    final BluetoothCharacteristic? dataCharacteristic = dataChar;
+
+    // send configuration command if config characteristic is available
+    if (configChar != null) {
+      final freq = BleConstants.defaultSampleRateHz;
+      final cmd = <int>[
+        0x81,
+        freq % 256,
+        freq ~/ 256,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+      ];
+      // write with response 
+      await configChar.write(cmd, withoutResponse: false);
+    }
 
     // generate filename
     final timestamp = DateTime.now().millisecondsSinceEpoch; 
@@ -67,33 +110,41 @@ class RecordingController extends GetxController {
     await csvWriter.startRecording(filename);
     currentFilePath.value = csvWriter.filePath; 
 
-    await characteristic?.setNotifyValue(true); // set notify value 
-    dataSubscription = characteristic?.lastValueStream.listen(onDataReceived); // listen to data stream 
+    // enable notifications on EEG data characteristic
+    await dataCharacteristic?.setNotifyValue(true);
 
-    isRecording.value = true; // set recording state 
-    recordingStartTime.value = DateTime.now(); // set recording start time
-    sampleCount.value = 0; // set sample count 
-    realtimeBuffer.clear(); // clear realtime buffer
+    // listen to data stream
+    dataSubscription = dataCharacteristic?.lastValueStream.listen(onDataReceived); 
 
-    startDurationTimer(); // start duration timer
+    isRecording.value = true; 
+    recordingStartTime.value = DateTime.now(); 
+    sampleCount.value = 0; 
+    realtimeBuffer.clear(); 
+
+    startDurationTimer(); 
     print('Recording started: $filename');
   }
 
   // stop recording
   Future<void> stopRecording() async {
     
-    await dataSubscription?.cancel(); // cancel data subscription
+    // cancel data subscription
+    await dataSubscription?.cancel(); 
     dataSubscription = null;
 
-    durationTimer?.cancel(); // stop duration timer
+    // stop duration timer
+    durationTimer?.cancel(); 
     durationTimer = null;
 
-    await csvWriter.stopRecording(); // stop write to csv
+    // stop write to csv
+    await csvWriter.stopRecording();
 
-    final samples = sampleCount.value; // get sample count
-    final path = currentFilePath.value; // get current file path
+    //
+    final samples = sampleCount.value; 
+    final path = currentFilePath.value; 
 
-    isRecording.value = false; // update recording state
+    // update recording state
+    isRecording.value = false; 
     
     print('Recording stopped. Total samples: $samples');
     print('File saved: $path');
@@ -110,6 +161,17 @@ class RecordingController extends GetxController {
   // parse bytes and write to csv
   void onDataReceived(List<int> bytes) { 
     final sample = parser.parseBytes(bytes); 
+
+    // debug: print first few packets to verify channel mapping
+    if (_debugPrintCount < 5) {
+      _debugPrintCount++;
+      final hex = bytes
+          .map((b) => b.toRadixString(16).padLeft(2, '0'))
+          .join(' ');
+      print('EEG DEBUG: raw bytes len=${bytes.length}, hex=[$hex]');
+      print('EEG DEBUG: channels (${sample.channels.length}) = ${sample.channels}');
+    }
+
     csvWriter.writeSample(sample); 
     sampleCount.value++;
     realtimeBuffer.add(sample);

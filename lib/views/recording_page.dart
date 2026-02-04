@@ -22,14 +22,18 @@ class RecordingPageState extends State<RecordingPage> {
   
   final SettingsController settingsController = Get.find<SettingsController>(); // settings controller
   final RecordingController recordingController = Get.find<RecordingController>(); // recording controller
+  late Set<int> visibleChannels; // visible channels
 
-  late Set<int> visibleChannels; // set of visible channel 
+  final List<double> windowOptionsSeconds = [2.0, 5.0, 10.0, 20.0];
+  int currentWindowIndex = 0;
 
   @override
   void initState() {
     super.initState();
     updateVisibleChannels();
   }
+
+  double get windowSeconds => windowOptionsSeconds[currentWindowIndex];
 
   // update visible channels 
   void updateVisibleChannels() {
@@ -55,9 +59,11 @@ class RecordingPageState extends State<RecordingPage> {
         return buffer.asMap().entries.map((entry) {
           final idx = entry.key; 
           final sample = entry.value;
+          // реальное время сэмпла (секунды)
           final time = idx * RecordingConstants.sampleIntervalSeconds;
-          final amplitude = ch < sample.channels.length ? sample.channels[ch] : 0.0; 
-          return EegDataPoint(time: time, amplitude: amplitude); // return chart data
+          final amplitude =
+              ch < sample.channels.length ? sample.channels[ch] : 0.0; 
+          return EegDataPoint(time: time, amplitude: amplitude);
         }).toList();
       });
     }
@@ -68,13 +74,16 @@ class RecordingPageState extends State<RecordingPage> {
   // generate demo data for testing
   List<List<EegDataPoint>> buildDemoData() {
     final random = Random(42); // number generator
-    final channelCount = settingsController.channelCount.value; // channel count
+    final channelCount = settingsController.channelCount.value; 
     return List.generate(channelCount, (channel) {
       return List.generate(RecordingConstants.demoDataPointCount, (i) {
         final time = i * RecordingConstants.sampleIntervalSeconds; 
         final baseFreq = 5.0 + channel * 2; // frequency
-        final amplitude = 50 * sin(2 * pi * baseFreq * time) + random.nextDouble() * 20 - 10; // amplitude with noise
-        return EegDataPoint(time: time, amplitude: amplitude); // return chart data
+        final amplitude = 50 *
+                sin(2 * pi * baseFreq * time) +
+            random.nextDouble() * 20 -
+            10; // amplitude with noise
+        return EegDataPoint(time: time, amplitude: amplitude); 
       });
     });
   }
@@ -88,7 +97,7 @@ class RecordingPageState extends State<RecordingPage> {
     }
   }
 
-  void _ensureVisibleChannelsValid(int channelCount) {
+  void ensureVisibleChannelsValid(int channelCount) {
     if (visibleChannels.any((ch) => ch >= channelCount)) {
       visibleChannels = visibleChannels.where((ch) => ch < channelCount).toSet();
     }
@@ -97,12 +106,19 @@ class RecordingPageState extends State<RecordingPage> {
     }
   }
 
+  void cycleTimeWindow() {
+    setState(() {
+      currentWindowIndex =
+          (currentWindowIndex + 1) % windowOptionsSeconds.length;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Obx(() {
       final channelCount = settingsController.channelCount.value;
       final isRecording = recordingController.isRecording.value;
-      _ensureVisibleChannelsValid(channelCount);
+      ensureVisibleChannelsValid(channelCount);
       final chartData = buildChartData();
 
       return Scaffold(
@@ -118,29 +134,6 @@ class RecordingPageState extends State<RecordingPage> {
             children: [
               RecordingStatusCard(isRecording: isRecording),
               const SizedBox(height: 16),
-              // channel selection (only for multi-channel)
-              if (channelCount > 1)
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(12.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Каналы (${visibleChannels.length}/$channelCount)',
-                          style: Theme.of(context).textTheme.titleSmall,
-                        ),
-                        const SizedBox(height: 8),
-                        ChannelLegend(
-                          channelCount: channelCount,
-                          visibleChannels: visibleChannels,
-                          onToggle: toggleChannel,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              if (channelCount > 1) const SizedBox(height: 16),
               // eeg signal chart
               Card(
                 child: Padding(
@@ -148,13 +141,23 @@ class RecordingPageState extends State<RecordingPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Text(
-                        'График сигнала',
-                        style: Theme.of(context).textTheme.titleMedium,
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'График сигнала',
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                          TextButton.icon(
+                            onPressed: cycleTimeWindow,
+                            icon: const Icon(Icons.speed),
+                            label: Text('Окно ${windowSeconds.toStringAsFixed(0)} c'),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 16),
                       Container(
-                        height: 300,
+                        height: 500,
                         decoration: BoxDecoration(
                           color: Theme.of(context)
                               .colorScheme
@@ -166,6 +169,7 @@ class RecordingPageState extends State<RecordingPage> {
                             : EegLineChart(
                                 channelData: chartData,
                                 visibleChannels: visibleChannels,
+                                windowSeconds: windowSeconds,
                               ),
                       ),
                     ],

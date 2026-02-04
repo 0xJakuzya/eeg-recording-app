@@ -14,7 +14,7 @@ class CsvStreamWriter {
   String? currentFilePath;
   int channelCount;
 
-  final List<String> buffer = []; // buffer to store csv lines before flushing to disk
+  final List<String> buffer = []; 
 
   CsvStreamWriter({this.channelCount = 1});
 
@@ -36,8 +36,10 @@ class CsvStreamWriter {
 
   // write a sample to the buffer
   void writeSample(EegSample sample) {
-    buffer.add(sample.toCsvLine()); // convert sample to csv line and add to buffer
+    // convert sample to csv line and add to buffer
+    buffer.add(sample.toCsvLine()); 
     if (buffer.length >= RecordingConstants.csvBufferSize) { 
+      // flush buffer
       flushBuffer();
     }
   }
@@ -51,8 +53,8 @@ class CsvStreamWriter {
   // flush the buffer to disk
   void flushBuffer() {
     if (buffer.isEmpty || sink == null) return;
-    sink!.writeAll(buffer, '\n'); // write all buffered lines to file
-    sink!.writeln(); // write newline to file
+    sink!.writeAll(buffer, '\n');
+    sink!.writeln(); 
     buffer.clear();
   }
 
@@ -66,7 +68,7 @@ class CsvStreamWriter {
     file = null;
   }
 
-  /// current recording file path (null when not recording)
+  /// current recording file path 
   String? get filePath => currentFilePath;
 
   // get the file size in bytes
