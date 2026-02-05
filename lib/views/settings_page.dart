@@ -17,15 +17,6 @@ class SettingsPage extends StatelessWidget {
       ),
       body: ListView(
         children: [
-          Obx(() => ListTile(
-            leading: const Icon(Icons.tune),
-            title: const Text('Количество каналов'),
-            subtitle: Text('${settingsController.channelCount.value} канал(ов)'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => showChannelDialog(context, settingsController),
-          )),
-          const Divider(),
-          
           ListTile(
             leading: const Icon(Icons.bluetooth),
             title: const Text('Настройки Bluetooth'),
