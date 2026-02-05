@@ -1,11 +1,10 @@
-/// controller for bluetooth low energy operations
-/// handles scanning, connecting, and disconnecting from devices.
-/// uses flutter_blue_plus for bluetooth operations and getx for state management.
-
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:get/get.dart';
 import 'package:ble_app/core/ble_constants.dart';
 
+// controller for bluetooth low energy operations
+// handles scanning, connecting, and disconnecting from devices.
+// uses flutter_blue_plus for bluetooth operations and getx for state management.
 class BleController extends GetxController {
 
   Rx<BluetoothDevice?> connectedDevice = Rx<BluetoothDevice?>(null);

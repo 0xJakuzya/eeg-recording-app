@@ -1,7 +1,3 @@
-/// view for displaying the list of bluetooth devices
-/// shows connected device and available devices from scan results.
-/// allows connecting and disconnecting from devices using ble controller.
-
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
@@ -9,6 +5,9 @@ import 'package:ble_app/controllers/ble_controller.dart';
 import 'package:ble_app/views/device_details_page.dart';
 import 'package:ble_app/widgets/device_list_tile.dart';
 
+// view for displaying the list of bluetooth devices
+// shows connected device and available devices from scan results.
+// allows connecting and disconnecting from devices using ble controller.
 class ConnectionPage extends StatelessWidget {
   const ConnectionPage({super.key});
 

@@ -1,9 +1,7 @@
-/// controller for recording eeg data
-/// handles ble data reception, parsing, and csv writing.
-/// manages recording state, sample buffering, and real-time data visualization.
-
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:get/get.dart';
 import 'package:ble_app/controllers/ble_controller.dart';
 import 'package:ble_app/controllers/settings_controller.dart';
@@ -12,26 +10,32 @@ import 'package:ble_app/core/recording_constants.dart';
 import 'package:ble_app/core/ble_constants.dart';
 import 'package:ble_app/services/csv_stream_service.dart';
 import 'package:ble_app/services/eeg_parser_service.dart';
+import 'package:ble_app/utils/signal_filters.dart';
+import 'package:ble_app/widgets/eeg_foreground_handler.dart';
 
+// controller for recording eeg data
+// handles ble data reception, parsing, and csv writing.
+// manages recording state, sample buffering, and real-time data visualization.
 class RecordingController extends GetxController {
 
   final BleController bleController = Get.find<BleController>(); //ble controller
   final SettingsController settingsController = Get.find<SettingsController>(); //settings controller
   
-  late CsvStreamWriter csvWriter; 
-  late EegParserService parser; 
+  late CsvStreamWriter csvWriter; // csv writer
+  late EegParserService parser; // eeg parser service
+  late List<BandpassFilter1D> channelFilters; // channel filters
 
-  RxBool isRecording = false.obs; 
-  Rx<String?> currentFilePath = Rx<String?>(null); 
+  RxBool isRecording = false.obs; // is recording
+  Rx<String?> currentFilePath = Rx<String?>(null); // current file path
   RxInt sampleCount = 0.obs; 
   Rx<DateTime?> recordingStartTime = Rx<DateTime?>(null); 
-  Rx<Duration> recordingDuration = Duration.zero.obs; 
+  Rx<Duration> recordingDuration = Duration.zero.obs; // recording duration
 
-  RxList<EegSample> realtimeBuffer = <EegSample>[].obs; 
+  RxList<EegSample> realtimeBuffer = <EegSample>[].obs; // real-time buffer
 
-  StreamSubscription? dataSubscription; 
-  Timer? durationTimer; 
-  int _debugPrintCount = 0; // temporary debug counter for channel data
+  StreamSubscription? dataSubscription; // data subscription
+  Timer? durationTimer; // duration timer
+  bool foregroundTaskInited = false; // foreground task initialized
 
   @override
   void onInit() {
@@ -42,8 +46,19 @@ class RecordingController extends GetxController {
   // initialize services
   void initServices() {
     final channels = settingsController.channelCount.value;
+    // initialize csv writer
     csvWriter = CsvStreamWriter(channelCount: channels);
+    // initialize eeg parser service
     parser = EegParserService(channelCount: channels);
+    // generate bandpass filters for each channel
+    channelFilters = List.generate(
+      channels,
+      (_) => BandpassFilter1D(
+        fs: BleConstants.defaultSampleRateHz.toDouble(),
+        lowCut: RecordingConstants.defaultBandpassLowHz,
+        highCut: RecordingConstants.defaultBandpassHighHz,
+      ),
+    );
   }
   
   // stop recording
@@ -57,11 +72,10 @@ class RecordingController extends GetxController {
   Future<void> startRecording() async {
 
     initServices();
-    _debugPrintCount = 0; // reset debug counter for new session
-
     // locate EEG data and config characteristics by UUID
     BluetoothCharacteristic? dataChar;
     BluetoothCharacteristic? configChar;
+    // find data and config characteristics in services
     for (final service in bleController.services) {
       final serviceUuid = service.uuid.str;
       if (serviceUuid == BleConstants.eegServiceUuid) {
@@ -80,10 +94,10 @@ class RecordingController extends GetxController {
       }
     }
 
-    // ensure we have a data characteristic
+    // get data characteristic
     final BluetoothCharacteristic? dataCharacteristic = dataChar;
 
-    // send configuration command if config characteristic is available
+    // send configuration command to set sample rate to default value
     if (configChar != null) {
       final freq = BleConstants.defaultSampleRateHz;
       final cmd = <int>[
@@ -102,12 +116,24 @@ class RecordingController extends GetxController {
       await configChar.write(cmd, withoutResponse: false);
     }
 
-    // generate filename
-    final timestamp = DateTime.now().millisecondsSinceEpoch; 
-    final channels = settingsController.channelCount.value; 
-    final filename = 'eeg_${channels}ch_$timestamp.csv'; 
+    // start foreground service when app is backgrounded
+    if (Platform.isAndroid || Platform.isIOS) {
+      await ensureForegroundTaskInited();
+      await FlutterForegroundTask.startService(
+        notificationTitle: 'Запись ЭЭГ',
+        notificationText: 'Идёт запись. Нажмите, чтобы открыть приложение.',
+        serviceTypes: [ForegroundServiceTypes.connectedDevice],
+        callback: startEegForegroundCallback,
+      );
+    }
 
-    await csvWriter.startRecording(filename);
+    // generate filename and start CSV in selected or default directory
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final channels = settingsController.channelCount.value;
+    final filename = 'eeg_${channels}ch_$timestamp.csv';
+    final baseDir = settingsController.recordingDirectory.value;
+
+    await csvWriter.startRecording(filename, baseDirectory: baseDir);
     currentFilePath.value = csvWriter.filePath; 
 
     // enable notifications on EEG data characteristic
@@ -122,78 +148,90 @@ class RecordingController extends GetxController {
     realtimeBuffer.clear(); 
 
     startDurationTimer(); 
-    print('Recording started: $filename');
   }
 
   // stop recording
   Future<void> stopRecording() async {
-    
     // cancel data subscription
     await dataSubscription?.cancel(); 
     dataSubscription = null;
-
     // stop duration timer
     durationTimer?.cancel(); 
     durationTimer = null;
-
-    // stop write to csv
+    // stop write to csv an flush buffer
     await csvWriter.stopRecording();
-
-    //
-    final samples = sampleCount.value; 
-    final path = currentFilePath.value; 
-
-    // update recording state
-    isRecording.value = false; 
-    
-    print('Recording stopped. Total samples: $samples');
-    print('File saved: $path');
-
-    // wait for 3 seconds
-    await Future.delayed(RecordingConstants.postStopDelay); 
-
-    // reset values    
-    currentFilePath.value = null;
+    // stop foreground service
+    if (Platform.isAndroid || Platform.isIOS) {
+      await FlutterForegroundTask.stopService();
+    }
+    // update recording state 
+    isRecording.value = false;
+    // wait for the recording to stop completely
+    await Future.delayed(RecordingConstants.postStopDelay);
     recordingStartTime.value = null;
     recordingDuration.value = Duration.zero;
+  }
+  // foreground task is initialized
+  Future<void> ensureForegroundTaskInited() async {
+    if (foregroundTaskInited) return;
+    final notifPerm = await FlutterForegroundTask.checkNotificationPermission();
+    if (notifPerm != NotificationPermission.granted) {
+      await FlutterForegroundTask.requestNotificationPermission();
+    }
+    FlutterForegroundTask.init(
+      androidNotificationOptions: AndroidNotificationOptions(
+        channelId: 'eeg_recording',
+        channelName: 'Запись ЭЭГ',
+        channelDescription: 'Уведомление во время записи ЭЭГ',
+        onlyAlertOnce: true,
+      ),
+      iosNotificationOptions: const IOSNotificationOptions(
+        showNotification: true,
+        playSound: false,
+      ),
+      foregroundTaskOptions: ForegroundTaskOptions(
+        eventAction: ForegroundTaskEventAction.repeat(60000),
+        allowWakeLock: true,
+        allowWifiLock: false,
+      ),
+    );
+    foregroundTaskInited = true;
   }
 
   // parse bytes and write to csv
   void onDataReceived(List<int> bytes) { 
-    final sample = parser.parseBytes(bytes); 
-
-    // debug: print first few packets to verify channel mapping
-    if (_debugPrintCount < 5) {
-      _debugPrintCount++;
-      final hex = bytes
-          .map((b) => b.toRadixString(16).padLeft(2, '0'))
-          .join(' ');
-      print('EEG DEBUG: raw bytes len=${bytes.length}, hex=[$hex]');
-      print('EEG DEBUG: channels (${sample.channels.length}) = ${sample.channels}');
+    // ignore empty/invalid packets that don't contain at least 1 channel
+    if (bytes.length <= 1) {
+      return;
     }
 
-    csvWriter.writeSample(sample); 
+    final rawSample = parser.parseBytes(bytes); 
+
+    // write raw data to CSV
+    csvWriter.writeSample(rawSample); 
     sampleCount.value++;
-    realtimeBuffer.add(sample);
+
+    // apply bandpass filter per channel for visualization
+    final filteredChannels = <double>[];
+    final channelCount = settingsController.channelCount.value;
+    for (int ch = 0; ch < channelCount; ch++) {
+      final value =
+          ch < rawSample.channels.length ? rawSample.channels[ch] : 0.0;
+      final filtered = channelFilters[ch].process(value);
+      filteredChannels.add(filtered);
+    }
+
+    final filteredSample = EegSample(
+      timestamp: rawSample.timestamp,
+      channels: filteredChannels,
+    );
+
+    realtimeBuffer.add(filteredSample);
     if (realtimeBuffer.length > RecordingConstants.realtimeBufferMaxSize) {
       realtimeBuffer.removeAt(0);
     }
   }
   
-  // find the eeg characteristic
-  Future<BluetoothCharacteristic?> findEegCharacteristic() async {
-    final services = bleController.services;
-    for (final service in services) {
-      for (final characteristic in service.characteristics) {
-        if (characteristic.properties.notify) {
-          print('Found notify characteristic: ${characteristic.uuid}');
-          return characteristic;
-        }
-      }
-    }
-    return null;
-  }
-
   // start duration timer
   void startDurationTimer() {
     durationTimer = Timer.periodic(RecordingConstants.durationTimerInterval, (timer) {
@@ -223,3 +261,4 @@ class RecordingController extends GetxController {
     return sampleCount.value / elapsed.inSeconds;
   }
 }
+

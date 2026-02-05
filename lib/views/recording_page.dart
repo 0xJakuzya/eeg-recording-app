@@ -1,7 +1,3 @@
-/// view for recording and visualizing eeg data
-/// displays real-time eeg signal charts, recording controls, and channel selection.
-/// allows toggling channel visibility and starting/stopping recordings.
-
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -11,6 +7,9 @@ import 'package:ble_app/controllers/recording_controller.dart';
 import 'package:ble_app/widgets/eeg_plots.dart';
 import 'package:ble_app/widgets/recording_status_card.dart';
 
+// view for recording and visualizing eeg data
+// displays real-time eeg signal charts, recording controls, and channel selection.
+// allows starting/stopping recordings and adjusting time window and amplitude scale.
 class RecordingPage extends StatefulWidget {
   const RecordingPage({super.key});
 
@@ -19,33 +18,22 @@ class RecordingPage extends StatefulWidget {
 }
 
 class RecordingPageState extends State<RecordingPage> {
-  
+
   final SettingsController settingsController = Get.find<SettingsController>(); // settings controller
   final RecordingController recordingController = Get.find<RecordingController>(); // recording controller
-  late Set<int> visibleChannels; // visible channels
 
-  final List<double> windowOptionsSeconds = [2.0, 5.0, 10.0, 20.0];
+  final List<double> windowOptionsSeconds = [5.0, 10.0]; // time window 
   int currentWindowIndex = 0;
+  final List<double> amplitudeScales = [1.0, 2.0, 4.0, 8.0]; // amplitude scale
+  int currentAmplitudeIndex = 1;
 
   @override
   void initState() {
     super.initState();
-    updateVisibleChannels();
   }
 
   double get windowSeconds => windowOptionsSeconds[currentWindowIndex];
-
-  // update visible channels 
-  void updateVisibleChannels() {
-    final count = settingsController.channelCount.value;
-    visibleChannels = Set.from(List.generate(count, (i) => i));
-  }
-
-  void toggleChannel(int channel) {
-    setState(() => visibleChannels.contains(channel)
-        ? visibleChannels.remove(channel)
-        : visibleChannels.add(channel));
-  }
+  double get amplitudeScale => amplitudeScales[currentAmplitudeIndex];
 
   // build chart data from real-time buffer or demo data
   List<List<EegDataPoint>> buildChartData() {
@@ -57,12 +45,14 @@ class RecordingPageState extends State<RecordingPage> {
     if (buffer.isNotEmpty) {
       return List.generate(channelCount, (ch) {
         return buffer.asMap().entries.map((entry) {
-          final idx = entry.key; 
+          final idx = entry.key;
           final sample = entry.value;
-          // реальное время сэмпла (секунды)
+          // sample index * sample interval
           final time = idx * RecordingConstants.sampleIntervalSeconds;
+          // if sample has values, take it, else - 0
           final amplitude =
-              ch < sample.channels.length ? sample.channels[ch] : 0.0; 
+              ch < sample.channels.length ? sample.channels[ch] : 0.0;
+          // return time, ch-amplitude
           return EegDataPoint(time: time, amplitude: amplitude);
         }).toList();
       });
@@ -97,19 +87,18 @@ class RecordingPageState extends State<RecordingPage> {
     }
   }
 
-  void ensureVisibleChannelsValid(int channelCount) {
-    if (visibleChannels.any((ch) => ch >= channelCount)) {
-      visibleChannels = visibleChannels.where((ch) => ch < channelCount).toSet();
-    }
-    if (visibleChannels.isEmpty && channelCount > 0) {
-      visibleChannels = Set.from(List.generate(channelCount, (i) => i));
-    }
-  }
-
+  // cycle time window
   void cycleTimeWindow() {
     setState(() {
       currentWindowIndex =
           (currentWindowIndex + 1) % windowOptionsSeconds.length;
+    });
+  }
+  // cycle amplitude scale
+  void cycleAmplitudeScale() {
+    setState(() {
+      currentAmplitudeIndex =
+          (currentAmplitudeIndex + 1) % amplitudeScales.length;
     });
   }
 
@@ -118,7 +107,6 @@ class RecordingPageState extends State<RecordingPage> {
     return Obx(() {
       final channelCount = settingsController.channelCount.value;
       final isRecording = recordingController.isRecording.value;
-      ensureVisibleChannelsValid(channelCount);
       final chartData = buildChartData();
 
       return Scaffold(
@@ -132,10 +120,15 @@ class RecordingPageState extends State<RecordingPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              RecordingStatusCard(isRecording: isRecording),
+              // recording status card
+              RecordingStatusCard(
+                isRecording: isRecording,
+                filePath: recordingController.currentFilePath.value,
+              ),
               const SizedBox(height: 16),
               // eeg signal chart
               Card(
+                color: const Color(0xFFFFF3B0),
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
                   child: Column(
@@ -148,29 +141,36 @@ class RecordingPageState extends State<RecordingPage> {
                             'График сигнала',
                             style: Theme.of(context).textTheme.titleMedium,
                           ),
-                          TextButton.icon(
-                            onPressed: cycleTimeWindow,
-                            icon: const Icon(Icons.speed),
-                            label: Text('Окно ${windowSeconds.toStringAsFixed(0)} c'),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              TextButton.icon(
+                                onPressed: cycleTimeWindow,
+                                icon: const Icon(Icons.speed),
+                                label: Text('Окно ${windowSeconds.toStringAsFixed(0)} c'),
+                              ),
+                              const SizedBox(width: 8),
+                              TextButton.icon(
+                                onPressed: cycleAmplitudeScale,
+                                icon: const Icon(Icons.stacked_line_chart),
+                                label: Text('Ампл x${amplitudeScale.toStringAsFixed(1)}'),
+                              ),
+                            ],
                           ),
                         ],
                       ),
                       const SizedBox(height: 16),
                       Container(
-                        height: 500,
+                        height: 450,
                         decoration: BoxDecoration(
-                          color: Theme.of(context)
-                              .colorScheme
-                              .surfaceContainerHighest,
+                          color: const Color(0xFFFFF3B0),
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        child: visibleChannels.isEmpty
-                            ? const Center(child: Text('Выберите каналы'))
-                            : EegLineChart(
-                                channelData: chartData,
-                                visibleChannels: visibleChannels,
-                                windowSeconds: windowSeconds,
-                              ),
+                        child: EegLineChart(
+                          channelData: chartData,
+                          windowSeconds: windowSeconds,
+                          amplitudeScale: amplitudeScale,
+                        ),
                       ),
                     ],
                   ),

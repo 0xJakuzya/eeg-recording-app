@@ -1,7 +1,6 @@
-/// model representing a single eeg data sample
-/// contains timestamp and voltage values for multiple channels.
-/// supports 1-8 channels with validation.
-
+// model representing a single eeg data sample
+// contains timestamp and voltage values for multiple channels.
+// supports 1-8 channels with validation.
 class EegSample {
 
   final DateTime timestamp; // timestamp recorder

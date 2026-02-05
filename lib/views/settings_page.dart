@@ -1,3 +1,4 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:ble_app/controllers/settings_controller.dart';
@@ -8,7 +9,7 @@ class SettingsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final settingsController = Get.find<SettingsController>();
-    
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Настройки'),
@@ -17,26 +18,31 @@ class SettingsPage extends StatelessWidget {
       ),
       body: ListView(
         children: [
-          ListTile(
-            leading: const Icon(Icons.bluetooth),
-            title: const Text('Настройки Bluetooth'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () {
-              // todo: open settings ble
-            },
-          ),
           const Divider(),
-          
-          ListTile(
-            leading: const Icon(Icons.storage),
-            title: const Text('Место хранения'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () {
-              // todo: open storage settings
-            },
-          ),
+          // recording directory
+          Obx(() {
+            final path = settingsController.recordingDirectory.value;
+            return ListTile(
+              leading: const Icon(Icons.folder),
+              title: const Text('Папка для записей'),
+              subtitle: Text(
+                path != null && path.isNotEmpty
+                    ? path
+                    : 'По умолчанию (документы приложения)',
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () async {
+                final dir = await FilePicker.platform.getDirectoryPath();
+                if (dir != null) {
+                  await settingsController.setRecordingDirectory(dir);
+                }
+              },
+            );
+          }),
+          // about application
           const Divider(),
-          
           ListTile(
             leading: const Icon(Icons.info),
             title: const Text('О приложении'),
@@ -53,36 +59,6 @@ class SettingsPage extends StatelessWidget {
                 ],
               );
             },
-          ),
-        ],
-      ),
-    );
-  }
-
-  void showChannelDialog(BuildContext context, SettingsController controller) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Количество каналов'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: SettingsController.channelOptions.map((count) {
-            return Obx(() => RadioListTile<int>(
-              title: Text('$count канал(ов)'),
-              value: count,
-              groupValue: controller.channelCount.value,
-              onChanged: (value) {
-                if (value != null) {
-                  controller.setChannelCount(value);
-                }
-              },
-            ));
-          }).toList(),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Готово'),
           ),
         ],
       ),

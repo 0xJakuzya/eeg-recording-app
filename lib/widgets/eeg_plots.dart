@@ -1,118 +1,104 @@
-// widget for displaying eeg line chart
-// supports 1-8 channels
-
-import 'dart:math' as math;
-
+import 'package:ble_app/core/recording_constants.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
+// widget for displaying eeg line chart
+// supports 1-8 channels
+// displays time and amplitude of the eeg signal
 class EegDataPoint {
-  final double time;      
-  final double amplitude; 
+  final double time;
+  final double amplitude;
   EegDataPoint({required this.time, required this.amplitude});
 }
-
-// colors for channels
-const List<Color> channelColors = [
-  Colors.red,
-  Colors.orange,
-  Colors.yellow,
-  Colors.green,
-  Colors.cyan,
-  Colors.blue,
-  Colors.purple,
-  Colors.pink,
-];
 
 class EegLineChart extends StatelessWidget {
 
   final List<List<EegDataPoint>> channelData; 
-  final Set<int> visibleChannels;
   final double windowSeconds;
+  final double amplitudeScale;
 
   const EegLineChart({
     super.key,
     required this.channelData,
-    required this.visibleChannels,
     required this.windowSeconds,
+    this.amplitudeScale = 1.0, 
   });
 
   @override
   Widget build(BuildContext context) {
-
+    // get the number of channels
     final int numChannels = channelData.length;
-
-    final List<int> visibleList = visibleChannels
-        .where((ch) => ch >= 0 && ch < numChannels)
-        .toList()
-      ..sort();
-
-    if (visibleList.isEmpty) {
-      return const Center(child: Text('Нет выбранных каналов'));
+    if (numChannels == 0) {
+      return const Center(child: Text('Нет данных'));
     }
 
-    final Map<int, double> channelMaxAbs = {};
-    for (final ch in visibleList) {
-      double maxAbs = 0;
-      for (final point in channelData[ch]) {
-        maxAbs = math.max(maxAbs, point.amplitude.abs());
-      }
-      channelMaxAbs[ch] = maxAbs == 0 ? 1 : maxAbs;
-    }
+    // all available channels
+    final List<int> channelIndices =
+        List<int>.generate(numChannels, (index) => index);
 
-
-    const double channelStep = 2.0;
-    const double halfHeight = 0.8; 
+    // channel step and half height
+    const double channelStep = 3.0;
+    const double halfHeight = 1.2; 
 
     final List<LineChartBarData> lineBarsData = [];
 
+    // get the maximum time
     double maxTime = 0;
-    final firstChannelPoints = channelData[visibleList.first];
+    final firstChannelPoints = channelData[channelIndices.first];
     if (firstChannelPoints.isNotEmpty) {
       maxTime = firstChannelPoints.last.time;
     }
+    // get the effective window
     final double effectiveWindow = windowSeconds <= 0 ? 1.0 : windowSeconds;
     final double minWindowTime = (maxTime - effectiveWindow).clamp(0, maxTime);
-
-    for (int order = 0; order < visibleList.length; order++) {
-      final int ch = visibleList[order];
+    
+    // get the line bars data
+    for (int order = 0; order < channelIndices.length; order++) {
+      final int ch = channelIndices[order];
       final double centerY = order * channelStep;
-      final double maxAbs = channelMaxAbs[ch]!;
+      const double range = RecordingConstants.emgDisplayRange;
 
+      // get the spots
       final spots = channelData[ch]
           .where((point) => point.time >= minWindowTime)
-          .map(
-            (point) => FlSpot(
+          .map((point) {
+            final norm = (point.amplitude / range).clamp(-1.0, 1.0);
+            return FlSpot(
               point.time - minWindowTime,
-              centerY + (point.amplitude / maxAbs) * halfHeight,
-            ),
-          )
+              centerY + amplitudeScale * norm * halfHeight,
+            );
+          })
           .toList();
 
+      // add the line bar data
       lineBarsData.add(
         LineChartBarData(
           spots: spots,
           isCurved: true,
-          color: channelColors[ch % channelColors.length],
+          color: Colors.black,
           dotData: const FlDotData(show: false),
           belowBarData: BarAreaData(show: false),
           barWidth: 1.5,
         ),
       );
     } 
+    // get the y labels
     final Map<double, String> yLabels = {};
-    for (int order = 0; order < visibleList.length; order++) {
-      final int ch = visibleList[order];
+    for (int order = 0; order < channelIndices.length; order++) {
+      final int ch = channelIndices[order];
       final double centerY = order * channelStep;
       yLabels[centerY] = 'CH${ch + 1}';
     }
 
+    // get the min and max y
     final double minY = -channelStep;
-    final double maxY = (visibleList.length - 1) * channelStep + channelStep;
+    final double maxY = (channelIndices.length - 1) * channelStep + channelStep;
 
+    // get the min and max x
     final double minX = 0;
     final double maxX = effectiveWindow;
 
+    // return the container
     return Container(
       padding: const EdgeInsets.all(8),
       child: LineChart(
