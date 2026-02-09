@@ -7,10 +7,10 @@ class FilesPage extends StatefulWidget {
   static const FilesController filesController = FilesController();
 
   @override
-  State<FilesPage> createState() => _FilesPageState();
+  State<FilesPage> createState() => FilesPageState();
 }
 
-class _FilesPageState extends State<FilesPage> {
+class FilesPageState extends State<FilesPage> {
   late Future<List<RecordingFileInfo>> filesFuture;
   final Set<String> selectedPaths = <String>{};
   List<RecordingFileInfo> currentFiles = <RecordingFileInfo>[];
@@ -26,6 +26,10 @@ class _FilesPageState extends State<FilesPage> {
     selectedPaths.clear();
     selectionMode = false;
     filesFuture = FilesPage.filesController.listRecordingFiles();
+  }
+
+  void refreshFiles() {
+    setState(reloadFiles);
   }
 
   Future<void> confirmAndDeleteSingle(
@@ -59,9 +63,7 @@ class _FilesPageState extends State<FilesPage> {
 
     if (!mounted) return;
 
-    setState(() {
-      reloadFiles();
-    });
+    refreshFiles();
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('Файл "${info.name}" удалён')),
@@ -80,7 +82,7 @@ class _FilesPageState extends State<FilesPage> {
             icon: const Icon(Icons.refresh),
             tooltip: 'Обновить список',
             onPressed: () {
-              setState(reloadFiles);
+              refreshFiles();
             },
           ),
         ],
@@ -269,9 +271,7 @@ class _FilesPageState extends State<FilesPage> {
 
                       if (!mounted) return;
 
-                      setState(() {
-                        reloadFiles();
-                      });
+                      refreshFiles();
 
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(

@@ -88,7 +88,7 @@ class EegLineChart extends StatelessWidget {
     for (int order = 0; order < channelIndices.length; order++) {
       final int ch = channelIndices[order];
       final double centerY = order * channelStep;
-      yLabels[centerY] = 'CH${ch + 1}';
+      yLabels[centerY] = 'CH ${ch + 1}';
     }
 
     // get the min and max y
@@ -126,6 +126,7 @@ class EegLineChart extends StatelessWidget {
               sideTitles: SideTitles(
                 showTitles: true,
                 reservedSize: 48,
+                interval: channelStep,
                 getTitlesWidget: (value, meta) {
                   const double threshold = 0.4;
                   double? closestKey;

@@ -20,7 +20,8 @@ class CsvStreamWriter {
 
   // generate header
   String generateHeader() {
-    final channelNames = List.generate(channelCount, (i) => 'channel${i + 1}').join('\t');
+    final channelNames =
+        List.generate(channelCount, (i) => 'channel${i + 1}').join(',');
     return 'time,$channelNames';
   }
 

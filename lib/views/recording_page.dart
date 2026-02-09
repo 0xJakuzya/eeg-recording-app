@@ -21,7 +21,7 @@ class RecordingPageState extends State<RecordingPage> {
 
   final SettingsController settingsController = Get.find<SettingsController>(); 
   final RecordingController recordingController = Get.find<RecordingController>(); 
-  final List<double> windowOptionsSeconds = [5.0, 10.0, 20.0]; // time window 
+  final List<double> windowOptionsSeconds = [5.0, 10.0]; // time window 
   final List<double> amplitudeScales = [1.0, 2.0, 4.0, 8.0]; // amplitude scale
 
   int currentWindowIndex = 0;

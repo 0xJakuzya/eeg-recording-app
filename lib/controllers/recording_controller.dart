@@ -86,10 +86,10 @@ class RecordingController extends GetxController {
       );
     }
 
-    // generate filename and start csv 
-    final timestamp = DateTime.now().millisecondsSinceEpoch;
-    final channels = settingsController.channelCount.value;
-    final filename = 'eeg_${channels}ch_$timestamp.csv';
+    // generate filename and start csv
+    final now = DateTime.now();
+    final formatted = now.format('yyyy-MM-dd_HH-mm'); // e.g. 2026-02-09_14-30
+    final filename = '$formatted.csv';
     final baseDir = settingsController.recordingDirectory.value;
 
     await csvWriter.startRecording(filename, baseDirectory: baseDir);

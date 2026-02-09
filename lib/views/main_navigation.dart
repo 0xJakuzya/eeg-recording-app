@@ -5,6 +5,8 @@ import 'package:ble_app/views/recording_page.dart';
 import 'package:ble_app/views/files_page.dart';
 import 'package:ble_app/views/settings_page.dart';
 
+final GlobalKey<FilesPageState> filesPageKey = GlobalKey<FilesPageState>();
+
 // view for displaying the main navigation
 // uses navigation controller to change the current index
 // uses the bottom navigation bar to navigate between the pages
@@ -15,29 +17,40 @@ class MainNavigation extends StatelessWidget {
   Widget build(BuildContext context) {
     // put the navigation controller
     final controller = Get.put(NavigationController());
-    return Obx(() => Scaffold(
-      body: IndexedStack(
-        index: controller.currentIndex.value,
-        children: const [
-          ConnectionPage(), // connection page
-          RecordingPage(), // recording page
-          FilesPage(), // files page
-          SettingsPage(), // settings page
-        ],
+    return Obx(
+      () => Scaffold(
+        body: IndexedStack(
+          index: controller.currentIndex.value,
+          children: [
+            const ConnectionPage(), // connection page
+            const RecordingPage(), // recording page
+            FilesPage(key: filesPageKey), // files page
+            const SettingsPage(), // settings page
+          ],
+        ),
+        // bottom navigation bar
+        bottomNavigationBar: BottomNavigationBar(
+          currentIndex: controller.currentIndex.value,
+          onTap: (index) {
+            controller.changeIndex(index);
+            if (index == 2) {
+              filesPageKey.currentState?.refreshFiles();
+            }
+          },
+          type: BottomNavigationBarType.fixed,
+          items: const [
+            BottomNavigationBarItem(
+                icon: Icon(Icons.bluetooth), label: 'Подключение'),
+            BottomNavigationBarItem(
+                icon: Icon(Icons.fiber_manual_record), label: 'Запись'),
+            BottomNavigationBarItem(
+                icon: Icon(Icons.folder), label: 'Файлы'),
+            BottomNavigationBarItem(
+                icon: Icon(Icons.settings), label: 'Настройки'),
+          ],
+        ),
       ),
-      // bottom navigation bar
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: controller.currentIndex.value,
-        onTap: controller.changeIndex,
-        type: BottomNavigationBarType.fixed,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.bluetooth), label: 'Подключение'),
-          BottomNavigationBarItem(icon: Icon(Icons.fiber_manual_record), label: 'Запись'),
-          BottomNavigationBarItem(icon: Icon(Icons.folder), label: 'Файлы'),
-          BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'Настройки'),
-        ],
-      ),
-    ));
+    );
   }
 }
 
