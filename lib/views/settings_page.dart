@@ -2,6 +2,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:ble_app/controllers/settings_controller.dart';
+import 'package:ble_app/core/data_format.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
@@ -41,6 +42,52 @@ class SettingsPage extends StatelessWidget {
               },
             );
           }),
+
+          // data format selection
+          const Divider(),
+          Obx(() {
+            final format = settingsController.dataFormat.value;
+            String subtitle;
+            switch (format) {
+              case DataFormat.int8:
+                subtitle = 'int8 (-128..127)';
+                break;
+              case DataFormat.uint12Le:
+                subtitle = 'int12 (0..4095)';
+                break;
+            }
+
+            return ListTile(
+              leading: const Icon(Icons.memory),
+              title: const Text('Формат данных устройства'),
+              subtitle: Text(subtitle),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () async {
+                final selected = await showModalBottomSheet<DataFormat>(
+                  context: context,
+                  builder: (ctx) {
+                    return Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        ListTile(
+                          title: const Text('int8'),
+                          onTap: () => Navigator.pop(ctx, DataFormat.int8),
+                        ),
+                        ListTile(
+                          title: const Text('int12'),
+                          onTap: () => Navigator.pop(ctx, DataFormat.uint12Le),
+                        ),
+                      ],
+                    );
+                  },
+                );
+                if (selected != null) {
+                  await settingsController.setDataFormat(selected);
+                }
+              },
+            );
+          }),
+
           // about application
           const Divider(),
           ListTile(

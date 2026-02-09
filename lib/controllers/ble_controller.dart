@@ -8,8 +8,11 @@ import 'package:ble_app/core/ble_constants.dart';
 class BleController extends GetxController {
 
   Rx<BluetoothDevice?> connectedDevice = Rx<BluetoothDevice?>(null);
-  RxList<BluetoothService> services = <BluetoothService>[].obs; 
-  RxBool isScanning = false.obs; 
+  RxList<BluetoothService> services = <BluetoothService>[].obs;
+  Rx<String?> selectedDataServiceUuid = Rx<String?>(null);
+  Rx<String?> selectedDataCharUuid = Rx<String?>(null);
+
+  RxBool isScanning = false.obs;
   DateTime? lastScanAt; 
 
   @override
@@ -23,17 +26,14 @@ class BleController extends GetxController {
 
     if (isScanning.value) return;
     final now = DateTime.now();
-    // prevent scanning too frequently
     if (lastScanAt != null && now.difference(lastScanAt!) < BleConstants.minScanInterval) {
       return;
     }
     // start scanning
     isScanning.value = true;
     try {
-      // 
       lastScanAt = DateTime.now();
       await FlutterBluePlus.stopScan(); 
-      // start scanning with specific service uuid 
       if (serviceUuid != null) {
         await FlutterBluePlus.startScan(
           timeout: BleConstants.scanTimeout,
@@ -54,47 +54,76 @@ class BleController extends GetxController {
 
   // connect to device
   Future<void> connectToDevices(BluetoothDevice device) async {
-    print(device.toString());
-
-    // disconnect from current device if already connected
     final current = connectedDevice.value;
     if (current != null && current.remoteId.str != device.remoteId.str) {
       await current.disconnect();
       connectedDevice.value = null;
       services.clear();
     }
-
-    // connect to device
     await device.connect(
       license: License.free,
       timeout: BleConstants.connectTimeout,
     );
-
     connectedDevice.value = device;
-    
     // discover services
-    List<BluetoothService> discoveredServices = await device.discoverServices();
+    final List<BluetoothService> discoveredServices = await device.discoverServices();
     services.value = discoveredServices;
-
-    // listen for connection state
+    autoSelectDataCharacteristic(discoveredServices);
     device.connectionState.listen((state) {
       if (state == BluetoothConnectionState.connecting) {
-        print('Device ${device.platformName} connecting...');
-      } else if (state == BluetoothConnectionState.connected) {
-        print('Device connected ${device.platformName}');
-      } else {
-        print('Device disconnected');
         connectedDevice.value = null;
+        clearSelection();
         services.clear();
       }
     });
   }
-
-  // disconnect 
+  void autoSelectDataCharacteristic(List<BluetoothService> discoveredServices) {
+    selectedDataServiceUuid.value = null;
+    selectedDataCharUuid.value = null;
+    const skipServiceParts = ['180f', '180a', '1800', '1801']; // battery, device info, etc
+    for (final service in discoveredServices) {
+      final su = service.uuid.str.toLowerCase();
+      if (skipServiceParts.any((p) => su.contains(p))) continue;
+      for (final c in service.characteristics) {
+        if (c.properties.notify || c.properties.indicate) {
+          selectedDataServiceUuid.value = service.uuid.str;
+          selectedDataCharUuid.value = c.uuid.str;
+          return;
+        }
+      }
+    }
+    for (final service in discoveredServices) {
+      for (final c in service.characteristics) {
+        if (c.properties.notify || c.properties.indicate) {
+          selectedDataServiceUuid.value = service.uuid.str;
+          selectedDataCharUuid.value = c.uuid.str;
+          return;
+        }
+      }
+    }
+  }
+  void clearSelection() {
+    selectedDataServiceUuid.value = null;
+    selectedDataCharUuid.value = null;
+  }
+  BluetoothCharacteristic? get selectedDataCharacteristic {
+    final sUuid = selectedDataServiceUuid.value;
+    final cUuid = selectedDataCharUuid.value;
+    if (sUuid == null || cUuid == null) return null;
+    for (final service in services) {
+      if (service.uuid.str != sUuid) continue;
+      for (final c in service.characteristics) {
+        if (c.uuid.str == cUuid) return c;
+      }
+    }
+    return null;
+  }
+  // disconnect
   Future<void> disconnect() async {
     if (connectedDevice.value != null) {
       await connectedDevice.value!.disconnect();
       connectedDevice.value = null;
+      clearSelection();
       services.clear();
     }
   }

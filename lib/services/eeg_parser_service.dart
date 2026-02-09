@@ -1,41 +1,56 @@
-import 'package:ble_app/core/recording_constants.dart';
+import 'package:ble_app/core/data_format.dart';
 import 'package:ble_app/models/eeg_sample.dart';
 
-// Service for parsing raw BLE bytes into EEG samples.
-// Device protocol: 1 byte counter + 1 byte per channel (signed int8).
-// Supports configurable channel count (1–8 channels).
+/// Service for parsing raw BLE bytes into EEG samples.
 class EegParserService {
-  
-  final int channelCount; // eeg channels to parse
-  EegParserService({this.channelCount = 1}); // default 1 channel
-  int get expectedPacketSize => channelCount * RecordingConstants.bytesPerChannel; 
+  EegParserService({
+    this.channelCount = 1,
+    this.format = DataFormat.uint12Le,
+  });
 
-  // parse raw bytes into eeg sample
+  final int channelCount;
+  final DataFormat format;
+
+  int get bytesPerChannel => format.bytesPerChannel;
+  int get expectedPacketSize => channelCount * bytesPerChannel;
+
   EegSample parseBytes(List<int> bytes) {
+    final channels = <double>[];
+    final timestamp = DateTime.now();
 
-    final channels = <double>[]; // list of channels
-    final timestamp = DateTime.now(); // current timestamp
-    
-    // first byte is packet counter, skip it
-    final availableBytes = bytes.length - 1;
-    final maxChannelsFromPacket = availableBytes ~/ RecordingConstants.bytesPerChannel;
-    final parsedChannelCount = maxChannelsFromPacket < channelCount
-        ? maxChannelsFromPacket
-        : channelCount;
-    
-    // parse channels
-    for (int i = 0; i < parsedChannelCount; i++) {
-      final byteIndex = 1 + i * RecordingConstants.bytesPerChannel;
-      int value = bytes[byteIndex];
-
-      // convert unsigned byte to signed int8 (-128..127)
-      if (value > 127) {
-        value -= 256;
-      }
-      final scaledValue = value.toDouble();
-      channels.add(scaledValue);
+    if (bytes.length <= 1) {
+      return EegSample(timestamp: timestamp, channels: channels);
     }
-    // return eeg sample with timestamp and channels
-    return EegSample(timestamp: timestamp, channels: channels); 
+    final availableBytes = bytes.length - 1;
+    final maxChannelsFromPacket = availableBytes ~/ bytesPerChannel;
+    final parsedChannelCount =
+        maxChannelsFromPacket < channelCount ? maxChannelsFromPacket : channelCount;
+
+    for (int i = 0; i < parsedChannelCount; i++) {
+      final baseIndex = 1 + i * bytesPerChannel;
+      if (baseIndex >= bytes.length) break;
+      double value;
+      switch (format) {
+        case DataFormat.int8:
+          int v = bytes[baseIndex];
+          if (v > 127) {
+            v -= 256;
+          }
+          value = v.toDouble();
+          break;
+        case DataFormat.uint12Le:
+          if (baseIndex + 1 >= bytes.length) {
+            continue;
+          }
+          final low = bytes[baseIndex];
+          final high = bytes[baseIndex + 1];
+          final raw16 = (high << 8) | low;
+          final raw12 = raw16 & 0x0FFF;
+          value = raw12.toDouble();
+          break;
+      }
+      channels.add(value);
+    }
+    return EegSample(timestamp: timestamp, channels: channels);
   }
 }

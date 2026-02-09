@@ -38,7 +38,6 @@ class CsvStreamWriter {
     file = File(currentFilePath!);
     sink = file!.openWrite(mode: FileMode.writeOnly);
     sink!.writeln(generateHeader());
-    print('CSV recording started: $currentFilePath');
   }
 
   // write a sample to the buffer

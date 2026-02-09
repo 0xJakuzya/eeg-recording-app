@@ -1,30 +1,30 @@
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:ble_app/core/recording_constants.dart';
 import 'package:ble_app/controllers/settings_controller.dart';
 import 'package:ble_app/controllers/recording_controller.dart';
+import 'package:ble_app/core/data_format.dart';
+import 'package:ble_app/utils/extension.dart';
 import 'package:ble_app/widgets/eeg_plots.dart';
 import 'package:ble_app/widgets/recording_status_card.dart';
 
 // view for recording and visualizing eeg data
-// displays real-time eeg signal charts, recording controls, and channel selection.
+// displays real-time signal charts, recording controls 
 // allows starting/stopping recordings and adjusting time window and amplitude scale.
 class RecordingPage extends StatefulWidget {
   const RecordingPage({super.key});
-
   @override
   State<RecordingPage> createState() => RecordingPageState();
 }
 
 class RecordingPageState extends State<RecordingPage> {
 
-  final SettingsController settingsController = Get.find<SettingsController>(); // settings controller
-  final RecordingController recordingController = Get.find<RecordingController>(); // recording controller
-
-  final List<double> windowOptionsSeconds = [5.0, 10.0]; // time window 
-  int currentWindowIndex = 0;
+  final SettingsController settingsController = Get.find<SettingsController>(); 
+  final RecordingController recordingController = Get.find<RecordingController>(); 
+  final List<double> windowOptionsSeconds = [5.0, 10.0, 20.0]; // time window 
   final List<double> amplitudeScales = [1.0, 2.0, 4.0, 8.0]; // amplitude scale
+
+  int currentWindowIndex = 0;
   int currentAmplitudeIndex = 1;
 
   @override
@@ -35,49 +35,24 @@ class RecordingPageState extends State<RecordingPage> {
   double get windowSeconds => windowOptionsSeconds[currentWindowIndex];
   double get amplitudeScale => amplitudeScales[currentAmplitudeIndex];
 
-  // build chart data from real-time buffer or demo data
+  // build chart data from real-time buffer 
   List<List<EegDataPoint>> buildChartData() {
-
-    final channelCount = settingsController.channelCount.value; // channel count
-    final buffer = recordingController.realtimeBuffer; // realtime buffer
-
-    // if buffer is not empty, return chart data
+    final channelCount = settingsController.channelCount.value; 
+    final buffer = recordingController.realtimeBuffer; 
     if (buffer.isNotEmpty) {
       return List.generate(channelCount, (ch) {
         return buffer.asMap().entries.map((entry) {
           final idx = entry.key;
           final sample = entry.value;
-          // sample index * sample interval
           final time = idx * RecordingConstants.sampleIntervalSeconds;
-          // if sample has values, take it, else - 0
           final amplitude =
               ch < sample.channels.length ? sample.channels[ch] : 0.0;
-          // return time, ch-amplitude
           return EegDataPoint(time: time, amplitude: amplitude);
         }).toList();
       });
     }
-    // return demo data if buffer is empty
-    return buildDemoData();
+    return <List<EegDataPoint>>[];
   }
-  
-  // generate demo data for testing
-  List<List<EegDataPoint>> buildDemoData() {
-    final random = Random(42); // number generator
-    final channelCount = settingsController.channelCount.value; 
-    return List.generate(channelCount, (channel) {
-      return List.generate(RecordingConstants.demoDataPointCount, (i) {
-        final time = i * RecordingConstants.sampleIntervalSeconds; 
-        final baseFreq = 5.0 + channel * 2; // frequency
-        final amplitude = 50 *
-                sin(2 * pi * baseFreq * time) +
-            random.nextDouble() * 20 -
-            10; // amplitude with noise
-        return EegDataPoint(time: time, amplitude: amplitude); 
-      });
-    });
-  }
-
   // start or stop recording
   Future<void> toggleRecording() async {
     if (recordingController.isRecording.value) {
@@ -86,7 +61,6 @@ class RecordingPageState extends State<RecordingPage> {
       await recordingController.startRecording();
     }
   }
-
   // cycle time window
   void cycleTimeWindow() {
     setState(() {
@@ -101,14 +75,14 @@ class RecordingPageState extends State<RecordingPage> {
           (currentAmplitudeIndex + 1) % amplitudeScales.length;
     });
   }
-
   @override
   Widget build(BuildContext context) {
     return Obx(() {
       final channelCount = settingsController.channelCount.value;
       final isRecording = recordingController.isRecording.value;
       final chartData = buildChartData();
-
+      final format = settingsController.dataFormat.value;
+      final displayRange = format.displayRange;
       return Scaffold(
         appBar: AppBar(
           title: Text('Запись ЭЭГ ($channelCount каналов)'),
@@ -124,6 +98,13 @@ class RecordingPageState extends State<RecordingPage> {
               RecordingStatusCard(
                 isRecording: isRecording,
                 filePath: recordingController.currentFilePath.value,
+              ),
+              const SizedBox(height: 8),
+              // current sample rate
+              Text(
+                'Частота: ${recordingController.sampleRate.toHz()}',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodySmall,
               ),
               const SizedBox(height: 16),
               // eeg signal chart
@@ -170,6 +151,7 @@ class RecordingPageState extends State<RecordingPage> {
                           channelData: chartData,
                           windowSeconds: windowSeconds,
                           amplitudeScale: amplitudeScale,
+                          displayRange: displayRange,
                         ),
                       ),
                     ],

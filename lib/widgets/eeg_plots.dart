@@ -1,4 +1,3 @@
-import 'package:ble_app/core/recording_constants.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
@@ -16,12 +15,14 @@ class EegLineChart extends StatelessWidget {
   final List<List<EegDataPoint>> channelData; 
   final double windowSeconds;
   final double amplitudeScale;
+  final double displayRange;
 
   const EegLineChart({
     super.key,
     required this.channelData,
     required this.windowSeconds,
-    this.amplitudeScale = 1.0, 
+    this.amplitudeScale = 1.0,
+    required this.displayRange,
   });
 
   @override
@@ -56,7 +57,7 @@ class EegLineChart extends StatelessWidget {
     for (int order = 0; order < channelIndices.length; order++) {
       final int ch = channelIndices[order];
       final double centerY = order * channelStep;
-      const double range = RecordingConstants.emgDisplayRange;
+      final double range = displayRange;
 
       // get the spots
       final spots = channelData[ch]
@@ -106,7 +107,7 @@ class EegLineChart extends StatelessWidget {
           lineBarsData: lineBarsData,
           minY: minY,
           maxY: maxY,
-          minX: minX,
+          minX: minX,            
           maxX: maxX,
           titlesData: FlTitlesData(
             bottomTitles: AxisTitles(
