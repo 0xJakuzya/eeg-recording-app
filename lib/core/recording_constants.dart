@@ -7,4 +7,7 @@ class RecordingConstants {
   static const Duration postStopDelay = Duration(seconds: 3); 
   static const int demoDataPointCount = 200; 
   static const String keyRecordingDirectory = 'recording_directory'; 
+  static const String keyRotationIntervalMinutes = 'recording_rotation_minutes';
+  static const String keyLastSessionNumber = 'last_session_number';
+  static const int defaultRotationIntervalMinutes = 20;
 }

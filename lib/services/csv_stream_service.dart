@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:ble_app/core/recording_constants.dart';
 import 'package:ble_app/models/eeg_sample.dart';
+import 'package:ble_app/utils/extension.dart';
 
 // service for writing eeg samples to csv files
 // uses a buffer to store samples and periodically flush them to the file.
@@ -11,12 +12,22 @@ class CsvStreamWriter {
   File? file; 
   IOSink? sink; 
   String? currentFilePath;
+  String? baseDirectory;
+  String? baseFilename;
   int channelCount;
   int sampleCounter = 0;
 
   final List<String> buffer = []; 
 
-  CsvStreamWriter({this.channelCount = 1});
+  // rotation settings
+  final Duration rotationInterval;
+  DateTime? currentFileStartedAt;
+  int partIndex = 1;
+
+  CsvStreamWriter({
+    this.channelCount = 1,
+    required this.rotationInterval,
+  });
 
   // generate header
   String generateHeader() {
@@ -28,23 +39,62 @@ class CsvStreamWriter {
   // start recording
   Future<void> startRecording(String filename, {String? baseDirectory}) async {
     sampleCounter = 0;
+    partIndex = 1;
+    baseFilename = filename;
+    this.baseDirectory = baseDirectory;
+    await openNewFile();
+  }
+
+  Future<void> openNewFile() async {
     final String dirPath;
-    if (baseDirectory != null && baseDirectory.isNotEmpty) {
-      dirPath = baseDirectory;
+    final baseDir = baseDirectory;
+    if (baseDir != null && baseDir.isNotEmpty) {
+      dirPath = baseDir;
     } else {
       final directory = await getApplicationDocumentsDirectory();
       dirPath = directory.path;
     }
-    currentFilePath = '$dirPath${dirPath.endsWith(Platform.pathSeparator) ? '' : Platform.pathSeparator}$filename';
+
+    currentFileStartedAt = DateTime.now();
+    final baseTime = rotationInterval > Duration.zero
+        ? currentFileStartedAt!.add(rotationInterval)
+        : currentFileStartedAt!;
+
+    final fname = buildRotatedFilename(
+      baseFilename ?? 'recording.csv',
+      baseTime,
+      partIndex,
+    );
+
+    currentFilePath =
+        '$dirPath${dirPath.endsWith(Platform.pathSeparator) ? '' : Platform.pathSeparator}$fname';
     file = File(currentFilePath!);
     sink = file!.openWrite(mode: FileMode.writeOnly);
     sink!.writeln(generateHeader());
+  }
+
+  String buildRotatedFilename(
+      String originalName, DateTime startedAt, int partIndex) {
+    final dotIndex = originalName.lastIndexOf('.');
+    String ext;
+    String base;
+    if (dotIndex != -1) {
+      base = originalName.substring(0, dotIndex);
+      ext = originalName.substring(dotIndex);
+    } else {
+      base = originalName;
+      ext = '.csv';
+    }
+    final datePart = startedAt.format('dd.MM.yyyy');
+    final timePart = startedAt.format('HH-mm');
+    return '${base}_${datePart}_${timePart}$ext';
   }
 
   // write a sample to the buffer
   void writeSample(EegSample sample) {
     sampleCounter++;
     buffer.add('$sampleCounter,${sample.channels.join(',')}'); 
+    checkRotation();
     if (buffer.length >= RecordingConstants.csvBufferSize) { 
       // flush buffer
       flushBuffer();
@@ -68,9 +118,30 @@ class CsvStreamWriter {
   Future<void> stopRecording() async {
     flushBuffer(); 
     await sink?.flush();
-    await sink?.close();  
+    await sink?.close();
     sink = null;
     file = null;
+  }
+
+  void checkRotation() {
+    if (sink == null || currentFileStartedAt == null) return;
+    if (rotationInterval <= Duration.zero) return;
+
+    final now = DateTime.now();
+    if (now.difference(currentFileStartedAt!) >= rotationInterval) {
+      rotateFile();
+    }
+  }
+
+  Future<void> rotateFile() async {
+    flushBuffer();
+    await sink?.flush();
+    await sink?.close();
+    sink = null;
+    file = null;
+
+    partIndex++;
+    await openNewFile();
   }
 
   /// current recording file path 

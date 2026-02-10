@@ -15,6 +15,10 @@ class BleController extends GetxController {
   RxBool isScanning = false.obs;
   DateTime? lastScanAt; 
 
+  /// Текущий статус BLE‑подключения
+  Rx<BluetoothConnectionState> connectionState =
+      BluetoothConnectionState.disconnected.obs;
+
   @override
   void onReady() {
     super.onReady();
@@ -60,6 +64,7 @@ class BleController extends GetxController {
       connectedDevice.value = null;
       services.clear();
     }
+    connectionState.value = BluetoothConnectionState.connecting;
     await device.connect(
       license: License.free,
       timeout: BleConstants.connectTimeout,
@@ -70,12 +75,14 @@ class BleController extends GetxController {
     services.value = discoveredServices;
     autoSelectDataCharacteristic(discoveredServices);
     device.connectionState.listen((state) {
-      if (state == BluetoothConnectionState.connecting) {
+      connectionState.value = state;
+      if (state == BluetoothConnectionState.disconnected) {
         connectedDevice.value = null;
         clearSelection();
         services.clear();
       }
     });
+    connectionState.value = BluetoothConnectionState.connected;
   }
   void autoSelectDataCharacteristic(List<BluetoothService> discoveredServices) {
     selectedDataServiceUuid.value = null;
@@ -121,10 +128,12 @@ class BleController extends GetxController {
   // disconnect
   Future<void> disconnect() async {
     if (connectedDevice.value != null) {
+      connectionState.value = BluetoothConnectionState.disconnecting;
       await connectedDevice.value!.disconnect();
       connectedDevice.value = null;
       clearSelection();
       services.clear();
+      connectionState.value = BluetoothConnectionState.disconnected;
     }
   }
 }

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:get/get.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:ble_app/controllers/ble_controller.dart';
 import 'package:ble_app/controllers/settings_controller.dart';
 import 'package:ble_app/models/eeg_sample.dart';
@@ -46,7 +47,16 @@ class RecordingController extends GetxController {
   // init services
   void initServices() {
     final channels = settingsController.channelCount.value;
-    csvWriter = CsvStreamWriter(channelCount: channels);
+    final rotationMinutes = settingsController.rotationIntervalMinutes.value;
+    final rotation = Duration(
+      minutes: rotationMinutes > 0
+          ? rotationMinutes
+          : RecordingConstants.defaultRotationIntervalMinutes,
+    );
+    csvWriter = CsvStreamWriter(
+      channelCount: channels,
+      rotationInterval: rotation,
+    );
     parser = EegParserService(
       channelCount: channels,
       format: settingsController.dataFormat.value,
@@ -88,11 +98,32 @@ class RecordingController extends GetxController {
 
     // generate filename and start csv
     final now = DateTime.now();
-    final formatted = now.format('yyyy-MM-dd_HH-mm'); // e.g. 2026-02-09_14-30
-    final filename = '$formatted.csv';
-    final baseDir = settingsController.recordingDirectory.value;
 
-    await csvWriter.startRecording(filename, baseDirectory: baseDir);
+    // base recordings directory (custom or app documents)
+    final String rootDir;
+    final customDir = settingsController.recordingDirectory.value;
+    if (customDir != null && customDir.isNotEmpty) {
+      rootDir = customDir;
+    } else {
+      final appDir = await getApplicationDocumentsDirectory();
+      rootDir = appDir.path;
+    }
+
+    // date folder: e.g. 10.02.2026
+    final dateFolderName = now.format('dd.MM.yyyy');
+    final dateDirPath = joinPath(rootDir, dateFolderName);
+
+    // session folder: session_1, session_2, ...
+    final sessionNumber = await settingsController.getNextSessionNumber();
+    final sessionFolderName = 'session_$sessionNumber';
+    final sessionDirPath = joinPath(dateDirPath, sessionFolderName);
+
+    await Directory(sessionDirPath).create(recursive: true);
+
+    // base filename (session_N), time and parts will be added by CsvStreamWriter
+    final filename = 'session_$sessionNumber.csv';
+
+    await csvWriter.startRecording(filename, baseDirectory: sessionDirPath);
     currentFilePath.value = csvWriter.filePath; 
 
     await dataCharacteristic.setNotifyValue(true);
@@ -177,6 +208,13 @@ class RecordingController extends GetxController {
     final elapsed = DateTime.now().difference(recordingStartTime.value!);
     if (elapsed.inSeconds == 0) return 0.0;
     return sampleCount.value / elapsed.inSeconds;
+  }
+
+  String joinPath(String parent, String child) {
+    if (parent.endsWith(Platform.pathSeparator)) {
+      return '$parent$child';
+    }
+    return '$parent${Platform.pathSeparator}$child';
   }
 }
 

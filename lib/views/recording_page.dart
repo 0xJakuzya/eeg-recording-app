@@ -4,7 +4,6 @@ import 'package:ble_app/core/recording_constants.dart';
 import 'package:ble_app/controllers/settings_controller.dart';
 import 'package:ble_app/controllers/recording_controller.dart';
 import 'package:ble_app/core/data_format.dart';
-import 'package:ble_app/utils/extension.dart';
 import 'package:ble_app/widgets/eeg_plots.dart';
 import 'package:ble_app/widgets/recording_status_card.dart';
 
@@ -85,9 +84,12 @@ class RecordingPageState extends State<RecordingPage> {
       final displayRange = format.displayRange;
       return Scaffold(
         appBar: AppBar(
-          title: Text('Запись ЭЭГ ($channelCount каналов)'),
-          backgroundColor: Colors.blue,
-          foregroundColor: Colors.white,
+          title: Text(
+            'Запись ($channelCount каналов)',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+          ),
         ),
         body: SingleChildScrollView(
           padding: const EdgeInsets.all(16.0),
@@ -99,17 +101,9 @@ class RecordingPageState extends State<RecordingPage> {
                 isRecording: isRecording,
                 filePath: recordingController.currentFilePath.value,
               ),
-              const SizedBox(height: 8),
-              // current sample rate
-              Text(
-                'Частота: ${recordingController.sampleRate.toHz()}',
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
               // eeg signal chart
               Card(
-                color: const Color(0xFFFFF3B0),
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
                   child: Column(
@@ -128,7 +122,9 @@ class RecordingPageState extends State<RecordingPage> {
                               TextButton.icon(
                                 onPressed: cycleTimeWindow,
                                 icon: const Icon(Icons.speed),
-                                label: Text('Окно ${windowSeconds.toStringAsFixed(0)} c'),
+                                label: Text(
+                                  'Окно ${windowSeconds.toStringAsFixed(0)} c',
+                                ),
                               ),
                               const SizedBox(width: 8),
                               TextButton.icon(
@@ -144,8 +140,11 @@ class RecordingPageState extends State<RecordingPage> {
                       Container(
                         height: 450,
                         decoration: BoxDecoration(
-                          color: const Color(0xFFFFF3B0),
                           borderRadius: BorderRadius.circular(8),
+                          color: Theme.of(context)
+                              .colorScheme
+                              .primary
+                              .withOpacity(0.02),
                         ),
                         child: EegLineChart(
                           channelData: chartData,
@@ -162,12 +161,16 @@ class RecordingPageState extends State<RecordingPage> {
               // recording control button
               ElevatedButton.icon(
                 onPressed: toggleRecording,
-                icon: Icon(isRecording ? Icons.stop : Icons.play_arrow),
+                icon: Icon(
+                  isRecording ? Icons.stop : Icons.play_arrow,
+                ),
                 label: Text(
-                    isRecording ? 'Остановить запись' : 'Начать запись'),
+                  isRecording ? 'Остановить запись' : 'Начать запись',
+                ),
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),
-                  backgroundColor: isRecording ? Colors.red : Colors.green,
+                  backgroundColor:
+                      isRecording ? Colors.redAccent : Colors.indigo,
                   foregroundColor: Colors.white,
                 ),
               ),

@@ -21,39 +21,68 @@ class FilesController {
     return getApplicationDocumentsDirectory();
   }
 
-  Future<List<RecordingFileInfo>> listRecordingFiles() async {
-    final dir = await recordingsDirectory;
+  Future<RecordingDirectoryContent> listDirectory({Directory? directory}) async {
+    final root = await recordingsDirectory;
+    final dir = directory ?? root;
 
     if (!await dir.exists()) {
-      return <RecordingFileInfo>[];
-    }
-
-    final entries = await dir
-        .list(recursive: false, followLinks: false)
-        .where((e) => e is File)
-        .cast<File>()
-        .toList();
-
-    final csvFiles = entries.where((file) {
-      final name = file.path.toLowerCase();
-      return name.endsWith('.csv');
-    }).toList();
-
-    final infos = <RecordingFileInfo>[];
-    for (final file in csvFiles) {
-      final stat = await file.stat();
-      infos.add(
-        RecordingFileInfo(
-          file: file,
-          name: fileName(file),
-          modified: stat.modified,
-          sizeBytes: stat.size,
-        ),
+      return RecordingDirectoryContent(
+        directory: dir,
+        subdirectories: const <Directory>[],
+        files: const <RecordingFileInfo>[],
       );
     }
 
-    infos.sort((a, b) => b.modified.compareTo(a.modified));
-    return infos;
+    final entities =
+        await dir.list(recursive: false, followLinks: false).toList();
+
+    final subdirs = <Directory>[];
+    final files = <RecordingFileInfo>[];
+
+    final isRoot = dir.path == root.path;
+
+    for (final entity in entities) {
+      if (entity is Directory) {
+        final name = entity.path.split(Platform.pathSeparator).last;
+        if (isRoot) {
+          // at root: show only date folders like 10.02.2026
+          final isDateDir =
+              RegExp(r'^\d{2}\.\d{2}\.\d{4}$').hasMatch(name);
+          if (!isDateDir) {
+            continue;
+          }
+        }
+        subdirs.add(entity);
+      } else if (entity is File) {
+        final name = entity.path.toLowerCase();
+        if (!name.endsWith('.csv')) continue;
+        final stat = await entity.stat();
+        files.add(
+          RecordingFileInfo(
+            file: entity,
+            name: fileName(entity),
+            modified: stat.modified,
+            sizeBytes: stat.size,
+          ),
+        );
+      }
+    }
+
+    subdirs.sort(
+      (a, b) => a.path.toLowerCase().compareTo(b.path.toLowerCase()),
+    );
+    files.sort((a, b) => b.modified.compareTo(a.modified));
+
+    return RecordingDirectoryContent(
+      directory: dir,
+      subdirectories: subdirs,
+      files: files,
+    );
+  }
+
+  Future<List<RecordingFileInfo>> listRecordingFiles() async {
+    final content = await listDirectory();
+    return content.files;
   }
 
   String fileName(File file) {
@@ -65,6 +94,12 @@ class FilesController {
     final file = info.file;
     if (await file.exists()) {
       await file.delete();
+    }
+  }
+
+  Future<void> deleteDirectory(Directory dir) async {
+    if (await dir.exists()) {
+      await dir.delete(recursive: true);
     }
   }
 
@@ -93,4 +128,17 @@ class RecordingFileInfo {
   String get formattedModified => modified.toLocal().format('dd.MM.yyyy HH:mm');
   String get formattedSize => sizeBytes.formatBytes();
 }
+
+class RecordingDirectoryContent {
+  final Directory directory;
+  final List<Directory> subdirectories;
+  final List<RecordingFileInfo> files;
+
+  RecordingDirectoryContent({
+    required this.directory,
+    required this.subdirectories,
+    required this.files,
+  });
+}
+
 

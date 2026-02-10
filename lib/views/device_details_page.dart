@@ -16,7 +16,12 @@ class DeviceDetailsPage extends StatelessWidget {
     
     return Scaffold(
       appBar: AppBar(
-        title: Text('Device: ${controller.connectedDevice.value?.platformName}'),
+        title: Text(
+          'Устройство: ${controller.connectedDevice.value?.platformName}',
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.bluetooth_disabled),

@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:ble_app/controllers/files_controller.dart';
+import 'package:ble_app/views/csv_view_page.dart';
 
 class FilesPage extends StatefulWidget {
   const FilesPage({super.key});
@@ -11,25 +14,41 @@ class FilesPage extends StatefulWidget {
 }
 
 class FilesPageState extends State<FilesPage> {
-  late Future<List<RecordingFileInfo>> filesFuture;
+  late Future<RecordingDirectoryContent> directoryFuture;
   final Set<String> selectedPaths = <String>{};
   List<RecordingFileInfo> currentFiles = <RecordingFileInfo>[];
+  List<Directory> currentDirectories = <Directory>[];
   bool selectionMode = false;
+  Directory? currentDirectory;
+  final List<Directory> directoryStack = <Directory>[];
 
   @override
   void initState() {
     super.initState();
-    reloadFiles();
+    reloadDirectory();
   }
 
-  void reloadFiles() {
+  void reloadDirectory() {
     selectedPaths.clear();
     selectionMode = false;
-    filesFuture = FilesPage.filesController.listRecordingFiles();
+    directoryFuture = FilesPage.filesController
+        .listDirectory(directory: currentDirectory);
   }
 
   void refreshFiles() {
-    setState(reloadFiles);
+    setState(() {
+      currentDirectory = null;
+      directoryStack.clear();
+      reloadDirectory();
+    });
+  }
+
+  void goUpDirectory() {
+    if (directoryStack.isEmpty) return;
+    setState(() {
+      currentDirectory = directoryStack.removeLast();
+      reloadDirectory();
+    });
   }
 
   Future<void> confirmAndDeleteSingle(
@@ -74,9 +93,27 @@ class FilesPageState extends State<FilesPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Файлы записи'),
-        backgroundColor: Colors.blue,
-        foregroundColor: Colors.white,
+        leadingWidth: 96,
+        leading: Row(
+          mainAxisAlignment: MainAxisAlignment.start,
+          children: [
+            IconButton(
+              icon: const Icon(Icons.arrow_back),
+              tooltip: 'На уровень выше',
+              onPressed: directoryStack.isEmpty
+                  ? null
+                  : () {
+                      goUpDirectory();
+                    },
+            ),
+          ],
+        ),
+        title: Text(
+          'Файлы записи',
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -89,8 +126,8 @@ class FilesPageState extends State<FilesPage> {
       ),
       bottomNavigationBar:
           selectionMode ? buildSelectionBar(context) : null,
-      body: FutureBuilder<List<RecordingFileInfo>>(
-        future: filesFuture,
+      body: FutureBuilder<RecordingDirectoryContent>(
+        future: directoryFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -103,81 +140,177 @@ class FilesPageState extends State<FilesPage> {
               ),
             );
           }
-          final files = snapshot.data ?? <RecordingFileInfo>[];
+          final content = snapshot.data;
+          if (content == null) {
+            return const SizedBox.shrink();
+          }
+          currentDirectory = content.directory;
+          final dirs = content.subdirectories;
+          final files = content.files;
+          currentDirectories = dirs;
           currentFiles = files;
-          if (files.isEmpty) {
+          final hasEntries = dirs.isNotEmpty || files.isNotEmpty;
+          if (!hasEntries) {
             return const Center(
               child: Text('Записанные файлы не найдены'),
             );
           }
 
-          return ListView.builder(
-            itemCount: files.length,
-            itemBuilder: (context, index) {
-              final info = files[index];
-              final path = info.file.path;
-              final isSelected =
-                  selectionMode && selectedPaths.contains(path);
-              return Card(
-                margin:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: ListTile(
-                  leading: Icon(
-                    isSelected
-                        ? Icons.check_circle
-                        : Icons.insert_drive_file,
-                    color: Colors.blue,
-                  ),
-                  title: Text(info.name),
-                  subtitle: Text(
-                    'Дата: ${info.formattedModified}   •   Размер: ${info.formattedSize}',
-                  ),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.share),
-                        onPressed: () =>
-                            FilesPage.filesController.shareFile(info),
+          final itemCount = dirs.length + files.length;
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                child: ListView.builder(
+                  itemCount: itemCount,
+                  itemBuilder: (context, index) {
+                    if (index < dirs.length) {
+                      final dir = dirs[index];
+                      final segments =
+                          dir.path.split(Platform.pathSeparator);
+                      final path = dir.path;
+                      final isSelected =
+                          selectionMode && selectedPaths.contains(path);
+                      final name =
+                          segments.isNotEmpty && segments.last.isNotEmpty
+                              ? segments.last
+                              : dir.path;
+
+                      return Card(
+                        margin: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 8),
+                        child: ListTile(
+                          leading: Icon(
+                            isSelected ? Icons.check_circle : Icons.folder,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                          title: Text(name),
+                          subtitle:
+                              const Text('Нажмите, чтобы открыть папку'),
+                          trailing: const Icon(Icons.chevron_right),
+                          onTap: () {
+                            if (selectionMode) {
+                              setState(() {
+                                if (isSelected) {
+                                  selectedPaths.remove(path);
+                                  if (selectedPaths.isEmpty) {
+                                    selectionMode = false;
+                                  }
+                                } else {
+                                  selectedPaths.add(path);
+                                }
+                              });
+                            } else {
+                              setState(() {
+                                if (currentDirectory != null) {
+                                  directoryStack.add(currentDirectory!);
+                                }
+                                currentDirectory = dir;
+                                reloadDirectory();
+                              });
+                            }
+                          },
+                          onLongPress: () {
+                            setState(() {
+                              if (!selectionMode) {
+                                selectionMode = true;
+                                selectedPaths
+                                  ..clear()
+                                  ..add(path);
+                              } else {
+                                if (isSelected) {
+                                  selectedPaths.remove(path);
+                                  if (selectedPaths.isEmpty) {
+                                    selectionMode = false;
+                                  }
+                                } else {
+                                  selectedPaths.add(path);
+                                }
+                              }
+                            });
+                          },
+                        ),
+                      );
+                    }
+
+                    final fileIndex = index - dirs.length;
+                    final info = files[fileIndex];
+                    final path = info.file.path;
+                    final isSelected =
+                        selectionMode && selectedPaths.contains(path);
+                    return Card(
+                      margin: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 8),
+                      child: ListTile(
+                        leading: Icon(
+                          isSelected
+                              ? Icons.check_circle
+                              : Icons.insert_drive_file,
+                          color:
+                              Theme.of(context).colorScheme.primary,
+                        ),
+                        title: Text(info.name),
+                        subtitle: Text(
+                          'Дата: ${info.formattedModified}   •   Размер: ${info.formattedSize}',
+                        ),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.share),
+                              onPressed: () => FilesPage
+                                  .filesController
+                                  .shareFile(info),
+                            ),
+                          ],
+                        ),
+                        onTap: () {
+                          if (selectionMode) {
+                            setState(() {
+                              if (isSelected) {
+                                selectedPaths.remove(path);
+                                if (selectedPaths.isEmpty) {
+                                  selectionMode = false;
+                                }
+                              } else {
+                                selectedPaths.add(path);
+                              }
+                            });
+                          } else {
+                            Navigator.of(context).push(
+                              MaterialPageRoute<void>(
+                                builder: (context) =>
+                                    CsvViewPage(info: info),
+                              ),
+                            );
+                          }
+                        },
+                        onLongPress: () {
+                          setState(() {
+                            if (!selectionMode) {
+                              selectionMode = true;
+                              selectedPaths
+                                ..clear()
+                                ..add(path);
+                            } else {
+                              if (isSelected) {
+                                selectedPaths.remove(path);
+                                if (selectedPaths.isEmpty) {
+                                  selectionMode = false;
+                                }
+                              } else {
+                                selectedPaths.add(path);
+                              }
+                            }
+                          });
+                        },
                       ),
-                    ],
-                  ),
-                  onTap: () {
-                    if (selectionMode) {
-                      setState(() {
-                        if (isSelected) {
-                          selectedPaths.remove(path);
-                          if (selectedPaths.isEmpty) {
-                            selectionMode = false;
-                          }
-                        } else {
-                          selectedPaths.add(path);
-                        }
-                      });
-                    } 
-                  },
-                  onLongPress: () {
-                    setState(() {
-                      if (!selectionMode) {
-                        selectionMode = true;
-                        selectedPaths
-                          ..clear()
-                          ..add(path);
-                      } else {
-                        if (isSelected) {
-                          selectedPaths.remove(path);
-                          if (selectedPaths.isEmpty) {
-                            selectionMode = false;
-                          }
-                        } else {
-                          selectedPaths.add(path);
-                        }
-                      }
-                    });
+                    );
                   },
                 ),
-              );
-            },
+              ),
+            ],
           );
         },
       ),
@@ -186,8 +319,8 @@ class FilesPageState extends State<FilesPage> {
 
   Widget buildSelectionBar(BuildContext context) {
     final selectedCount = selectedPaths.length;
-    final allSelected =
-        currentFiles.isNotEmpty && selectedCount == currentFiles.length;
+    final totalItems = currentFiles.length + currentDirectories.length;
+    final allSelected = totalItems > 0 && selectedCount == totalItems;
 
     return SafeArea(
       child: Container(
@@ -207,7 +340,7 @@ class FilesPageState extends State<FilesPage> {
             Text('Выбрано: $selectedCount'),
             const Spacer(),
             TextButton.icon(
-              onPressed: currentFiles.isEmpty
+              onPressed: totalItems == 0
                   ? null
                   : () {
                       setState(() {
@@ -218,6 +351,7 @@ class FilesPageState extends State<FilesPage> {
                           selectionMode = true;
                           selectedPaths
                             ..clear()
+                            ..addAll(currentDirectories.map((d) => d.path))
                             ..addAll(currentFiles.map((f) => f.file.path));
                         }
                       });
@@ -232,17 +366,22 @@ class FilesPageState extends State<FilesPage> {
               onPressed: selectedCount == 0
                   ? null
                   : () async {
-                      final toDelete = currentFiles
+                      final toDeleteFiles = currentFiles
                           .where((f) => selectedPaths.contains(f.file.path))
                           .toList();
-                      if (toDelete.isEmpty) return;
+                      final toDeleteDirs = currentDirectories
+                          .where((d) => selectedPaths.contains(d.path))
+                          .toList();
+                      if (toDeleteFiles.isEmpty && toDeleteDirs.isEmpty) {
+                        return;
+                      }
 
                       final confirmed = await showDialog<bool>(
                             context: context,
                             builder: (context) => AlertDialog(
                               title: const Text('Удалить файлы'),
                               content: Text(
-                                  'Удалить выбранные файлы (${toDelete.length})?'),
+                                  'Удалить выбранные объекты (${toDeleteFiles.length + toDeleteDirs.length})?'),
                               actions: [
                                 TextButton(
                                   onPressed: () =>
@@ -265,7 +404,11 @@ class FilesPageState extends State<FilesPage> {
 
                       if (!confirmed) return;
 
-                      for (final info in toDelete) {
+                      for (final dir in toDeleteDirs) {
+                        await FilesPage.filesController.deleteDirectory(dir);
+                      }
+
+                      for (final info in toDeleteFiles) {
                         await FilesPage.filesController.deleteFile(info);
                       }
 
@@ -276,7 +419,7 @@ class FilesPageState extends State<FilesPage> {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
                           content:
-                              Text('Удалено файлов: ${toDelete.length}'),
+                              Text('Удалено объектов: ${toDeleteFiles.length + toDeleteDirs.length}'),
                         ),
                       );
                     },

@@ -13,6 +13,21 @@ class RecordingStatusCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final String? displayPath;
+    if (filePath != null && filePath!.isNotEmpty) {
+      final segments = filePath!
+          .split(RegExp(r'[\\/]+'))
+          .where((s) => s.isNotEmpty)
+          .toList();
+      if (segments.length >= 3) {
+        displayPath =
+            segments.sublist(segments.length - 3).join(' / ');
+      } else {
+        displayPath = segments.join(' / ');
+      }
+    } else {
+      displayPath = null;
+    }
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -35,10 +50,10 @@ class RecordingStatusCard extends StatelessWidget {
                 ),
               ],
             ),
-            if (filePath != null && filePath!.isNotEmpty) ...[
+            if (displayPath != null && displayPath.isNotEmpty) ...[
               const SizedBox(height: 8),
               Text(
-                'Файл: $filePath',
+                'Файл: $displayPath',
                 style: Theme.of(context).textTheme.bodySmall,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
