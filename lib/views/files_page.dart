@@ -6,6 +6,7 @@ import 'package:ble_app/core/polysomnography_constants.dart';
 import 'package:ble_app/models/recording_models.dart';
 import 'package:ble_app/services/polysomnography_service.dart';
 import 'package:ble_app/views/csv_view_page.dart';
+import 'package:ble_app/widgets/files_selection_bar.dart';
 
 class FilesPage extends StatefulWidget {
   const FilesPage({super.key});
@@ -59,7 +60,7 @@ class FilesPageState extends State<FilesPage> {
 
   Future<void> confirmAndDeleteSingle(
       BuildContext context, RecordingFileInfo info) async {
-    final confirmed = await showDialog<bool>(
+    final result = await showDialog<bool>(
           context: context,
           builder: (context) => AlertDialog(
             title: const Text('Удалить файл'),
@@ -81,6 +82,8 @@ class FilesPageState extends State<FilesPage> {
           ),
         ) ??
         false;
+    if (!result) return;
+
     await FilesPage.filesController.deleteFile(info);
     refreshFiles();
     ScaffoldMessenger.of(context).showSnackBar(
@@ -123,8 +126,83 @@ class FilesPageState extends State<FilesPage> {
           ),
         ],
       ),
-      bottomNavigationBar:
-          selectionMode ? buildSelectionBar(context) : null,
+      bottomNavigationBar: selectionMode
+          ? FilesSelectionBar(
+              selectedCount: selectedPaths.length,
+              totalItems: currentFiles.length + currentDirectories.length,
+              allSelected: allSelected,
+              hasSelectedFiles: hasSelectedFiles,
+              onToggleSelectAll: handleToggleSelectAll,
+              onUploadSelected: () async {
+                final selectedFileInfos = currentFiles
+                    .where((f) => selectedPaths.contains(f.file.path))
+                    .toList();
+                if (selectedFileInfos.isEmpty) return;
+                await showPolysomnographyUploadDialog(
+                  context,
+                  selectedFileInfos,
+                );
+              },
+              onDeleteSelected: () async {
+                final toDeleteFiles = currentFiles
+                    .where((f) => selectedPaths.contains(f.file.path))
+                    .toList();
+                final toDeleteDirs = currentDirectories
+                    .where((d) => selectedPaths.contains(d.path))
+                    .toList();
+                if (toDeleteFiles.isEmpty && toDeleteDirs.isEmpty) {
+                  return;
+                }
+
+                final confirmed = await showDialog<bool>(
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        title: const Text('Удалить файлы'),
+                        content: Text(
+                            'Удалить выбранные объекты (${toDeleteFiles.length + toDeleteDirs.length})?'),
+                        actions: [
+                          TextButton(
+                            onPressed: () =>
+                                Navigator.of(context).pop(false),
+                            child: const Text('Отмена'),
+                          ),
+                          FilledButton(
+                            onPressed: () =>
+                                Navigator.of(context).pop(true),
+                            style: FilledButton.styleFrom(
+                              backgroundColor: Colors.red,
+                              foregroundColor: Colors.white,
+                            ),
+                            child: const Text('Удалить'),
+                          ),
+                        ],
+                      ),
+                    ) ??
+                    false;
+
+                if (!confirmed) return;
+
+                for (final dir in toDeleteDirs) {
+                  await FilesPage.filesController.deleteDirectory(dir);
+                }
+
+                for (final info in toDeleteFiles) {
+                  await FilesPage.filesController.deleteFile(info);
+                }
+
+                if (!mounted) return;
+
+                refreshFiles();
+
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                        'Удалено объектов: ${toDeleteFiles.length + toDeleteDirs.length}'),
+                  ),
+                );
+              },
+            )
+          : null,
       body: FutureBuilder<RecordingDirectoryContent>(
         future: directoryFuture,
         builder: (context, snapshot) {
@@ -316,143 +394,38 @@ class FilesPageState extends State<FilesPage> {
     );
   }
 
-  Widget buildSelectionBar(BuildContext context) {
-    final selectedCount = selectedPaths.length;
+  bool get allSelected {
     final totalItems = currentFiles.length + currentDirectories.length;
-    final allSelected = totalItems > 0 && selectedCount == totalItems;
-    final selectedFileInfos = currentFiles
-        .where((f) => selectedPaths.contains(f.file.path))
-        .toList();
-    final hasSelectedFiles = selectedFileInfos.isNotEmpty;
-
-    return SafeArea(
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
-          boxShadow: const [
-            BoxShadow(
-              color: Colors.black26,
-              blurRadius: 4,
-              offset: Offset(0, -2),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Text('Выбрано: $selectedCount'),
-            const Spacer(),
-            TextButton.icon(
-              onPressed: totalItems == 0
-                  ? null
-                  : () {
-                      setState(() {
-                        if (allSelected) {
-                          selectedPaths.clear();
-                          selectionMode = false;
-                        } else {
-                          selectionMode = true;
-                          selectedPaths
-                            ..clear()
-                            ..addAll(currentDirectories.map((d) => d.path))
-                            ..addAll(currentFiles.map((f) => f.file.path));
-                        }
-                      });
-                    },
-              icon: Icon(
-                allSelected ? Icons.deselect : Icons.select_all,
-              ),
-              label: Text(allSelected ? 'Снять все' : 'Выбрать все'),
-            ),
-            const SizedBox(width: 8),
-            FilledButton.icon(
-              onPressed: !hasSelectedFiles
-                  ? null
-                  : () async {
-                      await _showPolysomnographyUploadDialog(
-                          context, selectedFileInfos);
-                    },
-              icon: const Icon(Icons.cloud_upload),
-              label: const Text('Отправить'),
-            ),
-            const SizedBox(width: 8),
-            FilledButton.icon(
-              onPressed: selectedCount == 0
-                  ? null
-                  : () async {
-                      final toDeleteFiles = currentFiles
-                          .where((f) => selectedPaths.contains(f.file.path))
-                          .toList();
-                      final toDeleteDirs = currentDirectories
-                          .where((d) => selectedPaths.contains(d.path))
-                          .toList();
-                      if (toDeleteFiles.isEmpty && toDeleteDirs.isEmpty) {
-                        return;
-                      }
-
-                      final confirmed = await showDialog<bool>(
-                            context: context,
-                            builder: (context) => AlertDialog(
-                              title: const Text('Удалить файлы'),
-                              content: Text(
-                                  'Удалить выбранные объекты (${toDeleteFiles.length + toDeleteDirs.length})?'),
-                              actions: [
-                                TextButton(
-                                  onPressed: () =>
-                                      Navigator.of(context).pop(false),
-                                  child: const Text('Отмена'),
-                                ),
-                                FilledButton(
-                                  onPressed: () =>
-                                      Navigator.of(context).pop(true),
-                                  style: FilledButton.styleFrom(
-                                    backgroundColor: Colors.red,
-                                    foregroundColor: Colors.white,
-                                  ),
-                                  child: const Text('Удалить'),
-                                ),
-                              ],
-                            ),
-                          ) ??
-                          false;
-
-                      if (!confirmed) return;
-
-                      for (final dir in toDeleteDirs) {
-                        await FilesPage.filesController.deleteDirectory(dir);
-                      }
-
-                      for (final info in toDeleteFiles) {
-                        await FilesPage.filesController.deleteFile(info);
-                      }
-
-                      if (!mounted) return;
-
-                      refreshFiles();
-
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content:
-                              Text('Удалено объектов: ${toDeleteFiles.length + toDeleteDirs.length}'),
-                        ),
-                      );
-                    },
-              icon: const Icon(Icons.delete),
-              label: const Text('Удалить'),
-            ),
-          ],
-        ),
-      ),
-    );
+    return totalItems > 0 && selectedPaths.length == totalItems;
   }
 
-  Future<void> _showPolysomnographyUploadDialog(
+  bool get hasSelectedFiles {
+    return currentFiles.any((f) => selectedPaths.contains(f.file.path));
+  }
+
+  void handleToggleSelectAll() {
+    final totalItems = currentFiles.length + currentDirectories.length;
+    final allSelected = totalItems > 0 && selectedPaths.length == totalItems;
+    setState(() {
+      if (allSelected) {
+        selectedPaths.clear();
+        selectionMode = false;
+      } else {
+        selectionMode = true;
+        selectedPaths
+          ..clear()
+          ..addAll(currentDirectories.map((d) => d.path))
+          ..addAll(currentFiles.map((f) => f.file.path));
+      }
+    });
+  }
+
+  Future<void> showPolysomnographyUploadDialog(
     BuildContext context,
     List<RecordingFileInfo> files,
   ) async {
     final patientIdController = TextEditingController();
     final patientNameController = TextEditingController();
-    // Частота дискретизации фиксированная и не редактируется.
     const double samplingFrequency =
         PolysomnographyConstants.defaultSamplingFrequencyHz;
     final confirmed = await showDialog<bool>(
@@ -530,21 +503,17 @@ class FilesPageState extends State<FilesPage> {
 
     try {
       final uploadedAll = <String>[];
-      final predictions = <String>[];
 
       for (final info in files) {
-        final result = await polysomnographyService.uploadFileAndPredict(
+
+        await polysomnographyService.uploadTxtFile(
           file: info.file,
           patientId: patientId,
           patientName: name,
           samplingFrequency: samplingFrequency,
         );
 
-        final fileIndex = result.$1;
-        final prediction = result.$2;
-
         uploadedAll.add(info.file.path);
-        predictions.add('fileIndex=$fileIndex; keys=${prediction.keys.join(',')}');
       }
 
       if (!mounted) return;
@@ -553,8 +522,7 @@ class FilesPageState extends State<FilesPage> {
         SnackBar(
           content: Text(
             'Отправлено файлов: ${files.length}\n'
-            'Файлы: ${uploadedAll.join(', ')}\n'
-            'Предикты: ${predictions.join(' | ')}',
+            'Файлы: ${uploadedAll.join(', ')}',
           ),
         ),
       );

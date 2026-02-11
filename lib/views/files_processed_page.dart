@@ -13,19 +13,12 @@ class FilesProcessedPage extends StatelessWidget {
   static const FilesController filesController = FilesController();
 
   Future<List<ProcessedSession>> loadTodaySessions() async {
-    // Базовая директория записей — та же, с которой работает FilesPage.
+
     final root = await filesController.recordingsDirectory;
     final todayName = DateTime.now()
         .toLocal()
         .format('dd.MM.yyyy');
     final dateRegex = RegExp(r'^\d{2}\.\d{2}\.\d{4}$');
-
-    // Определяем "дату-сессию", с которой будем работать.
-    // 1) Если пользователь в настройках сразу выбрал папку конкретной даты
-    //    (…/11.02.2026) — используем её.
-    // 2) Иначе ищем внутри root подпапки с датами и берём:
-    //    - либо папку за сегодня,
-    //    - либо самую свежую по дате.
     Directory dateDir;
     final rootName = root.path.split(Platform.pathSeparator).last;
     if (dateRegex.hasMatch(rootName)) {
@@ -37,11 +30,6 @@ class FilesProcessedPage extends StatelessWidget {
         final name = dir.path.split(Platform.pathSeparator).last;
         return dateRegex.hasMatch(name);
       }).toList();
-
-      if (dateDirs.isEmpty) {
-        // В корне нет папок с датами — сессий нет.
-        return <ProcessedSession>[];
-      }
 
       Directory? todayDir;
       for (final dir in dateDirs) {
@@ -55,7 +43,6 @@ class FilesProcessedPage extends StatelessWidget {
       if (todayDir != null) {
         dateDir = todayDir;
       } else {
-        // Берём самую "свежую" дату.
         dateDirs.sort((a, b) {
           DateTime parse(String s) {
             final parts = s.split('.');
@@ -74,23 +61,11 @@ class FilesProcessedPage extends StatelessWidget {
         dateDir = dateDirs.first;
       }
     }
-
-    // Теперь внутри выбранной папки даты нам нужно найти "сессии".
-    // Структура записи создаётся RecordingController:
-    //   <root>/<dd.MM.yyyy>/session_N/session_N.txt
-    //
-    // Но могут быть и старые/нестандартные записи, когда файлы лежат
-    // прямо в датовом каталоге. Поэтому:
-    //  - сначала ищем подпапки вида session_N;
-    //  - если подпапок нет, то считаем отдельной сессией каждый .txt файл.
-
     final dateEntities =
         await dateDir.list(recursive: false, followLinks: false).toList();
 
     final sessionDirRegex = RegExp(r'^session_\d+$');
     final sessions = <ProcessedSession>[];
-
-    // 1) Ищем подпапки session_N
     final sessionDirs = <Directory>[];
     for (final entity in dateEntities) {
       if (entity is Directory) {
@@ -100,9 +75,7 @@ class FilesProcessedPage extends StatelessWidget {
         }
       }
     }
-
     if (sessionDirs.isNotEmpty) {
-      // Нашли "правильные" каталоги сессий — работаем с ними.
       for (final dir in sessionDirs) {
         sessions.add(
           ProcessedSession.fromDirectory(
@@ -112,7 +85,6 @@ class FilesProcessedPage extends StatelessWidget {
         );
       }
     } else {
-      // Подкаталогов session_N нет — трактуем каждый .txt как отдельную сессию.
       for (final entity in dateEntities) {
         if (entity is File) {
           final name = entity.path.split(Platform.pathSeparator).last;
@@ -122,7 +94,7 @@ class FilesProcessedPage extends StatelessWidget {
             continue;
           }
 
-          final id = name; // для старых файлов оставляем полное имя.
+          final id = name;
           sessions.add(
             ProcessedSession(
               id: id,
@@ -133,10 +105,7 @@ class FilesProcessedPage extends StatelessWidget {
         }
       }
     }
-
-    // Упорядочим: сначала по имени (session_1, session_2, ... или по названию файла).
     sessions.sort((a, b) => a.id.compareTo(b.id));
-
     return sessions;
   }
 
@@ -223,17 +192,7 @@ class FilesProcessedPage extends StatelessWidget {
                 title: Text(session.id),
                 subtitle: Text(statusLabel),
                 trailing: _statusIcon(session.predictionStatus, context),
-                onTap: () {
-                  if (session.predictionStatus == PredictionStatus.done &&
-                      session.prediction != null) {
-                    Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (context) =>
-                            SessionDetailsPage(session: session),
-                      ),
-                    );
-                  }
-                },
+                onTap: () {},
               );
             },
           );
