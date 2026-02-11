@@ -7,17 +7,12 @@ import 'package:ble_app/core/ble_constants.dart';
 // uses flutter_blue_plus for bluetooth operations and getx for state management.
 class BleController extends GetxController {
 
-  Rx<BluetoothDevice?> connectedDevice = Rx<BluetoothDevice?>(null);
-  RxList<BluetoothService> services = <BluetoothService>[].obs;
-  Rx<String?> selectedDataServiceUuid = Rx<String?>(null);
-  Rx<String?> selectedDataCharUuid = Rx<String?>(null);
-
-  RxBool isScanning = false.obs;
-  DateTime? lastScanAt; 
-
-  /// Текущий статус BLE‑подключения
-  Rx<BluetoothConnectionState> connectionState =
-      BluetoothConnectionState.disconnected.obs;
+  final Rx<BluetoothDevice?> connectedDevice = Rx<BluetoothDevice?>(null);
+  final RxList<BluetoothService> services = <BluetoothService>[].obs;
+  final Rx<String?> selectedDataServiceUuid = Rx<String?>(null);
+  final Rx<String?> selectedDataCharUuid = Rx<String?>(null);
+  final RxBool isScanning = false.obs; DateTime? lastScanAt;
+  final Rx<BluetoothConnectionState> connectionState = BluetoothConnectionState.disconnected.obs;
 
   @override
   void onReady() {
@@ -30,14 +25,14 @@ class BleController extends GetxController {
 
     if (isScanning.value) return;
     final now = DateTime.now();
-    if (lastScanAt != null && now.difference(lastScanAt!) < BleConstants.minScanInterval) {
-      return;
-    }
+    
     // start scanning
+    if (lastScanAt != null &&
+        now.difference(lastScanAt!) < BleConstants.minScanInterval) return;
     isScanning.value = true;
     try {
-      lastScanAt = DateTime.now();
-      await FlutterBluePlus.stopScan(); 
+      lastScanAt = now;
+      await FlutterBluePlus.stopScan();
       if (serviceUuid != null) {
         await FlutterBluePlus.startScan(
           timeout: BleConstants.scanTimeout,
@@ -64,16 +59,18 @@ class BleController extends GetxController {
       connectedDevice.value = null;
       services.clear();
     }
+
     connectionState.value = BluetoothConnectionState.connecting;
     await device.connect(
       license: License.free,
       timeout: BleConstants.connectTimeout,
     );
+
     connectedDevice.value = device;
-    // discover services
-    final List<BluetoothService> discoveredServices = await device.discoverServices();
+    final discoveredServices = await device.discoverServices();
     services.value = discoveredServices;
     autoSelectDataCharacteristic(discoveredServices);
+
     device.connectionState.listen((state) {
       connectionState.value = state;
       if (state == BluetoothConnectionState.disconnected) {
@@ -84,31 +81,32 @@ class BleController extends GetxController {
     });
     connectionState.value = BluetoothConnectionState.connected;
   }
-  void autoSelectDataCharacteristic(List<BluetoothService> discoveredServices) {
+
+  void autoSelectDataCharacteristic(
+      List<BluetoothService> discoveredServices) {
     selectedDataServiceUuid.value = null;
     selectedDataCharUuid.value = null;
-    const skipServiceParts = ['180f', '180a', '1800', '1801']; // battery, device info, etc
-    for (final service in discoveredServices) {
+
+    bool pickFrom(Iterable<BluetoothService> servicesToSearch) {
+      for (final service in servicesToSearch) {
+        for (final c in service.characteristics) {
+          if (c.properties.notify || c.properties.indicate) {
+            selectedDataServiceUuid.value = service.uuid.str;
+            selectedDataCharUuid.value = c.uuid.str;
+            return true;
+          }
+        }
+      }
+      return false;
+    }
+    final preferredServices = discoveredServices.where((service) {
       final su = service.uuid.str.toLowerCase();
-      if (skipServiceParts.any((p) => su.contains(p))) continue;
-      for (final c in service.characteristics) {
-        if (c.properties.notify || c.properties.indicate) {
-          selectedDataServiceUuid.value = service.uuid.str;
-          selectedDataCharUuid.value = c.uuid.str;
-          return;
-        }
-      }
-    }
-    for (final service in discoveredServices) {
-      for (final c in service.characteristics) {
-        if (c.properties.notify || c.properties.indicate) {
-          selectedDataServiceUuid.value = service.uuid.str;
-          selectedDataCharUuid.value = c.uuid.str;
-          return;
-        }
-      }
-    }
+      return !BleConstants.skipServiceParts.any((p) => su.contains(p));
+    });
+    if (pickFrom(preferredServices)) return;
+    pickFrom(discoveredServices);
   }
+
   void clearSelection() {
     selectedDataServiceUuid.value = null;
     selectedDataCharUuid.value = null;
@@ -117,6 +115,7 @@ class BleController extends GetxController {
     final sUuid = selectedDataServiceUuid.value;
     final cUuid = selectedDataCharUuid.value;
     if (sUuid == null || cUuid == null) return null;
+
     for (final service in services) {
       if (service.uuid.str != sUuid) continue;
       for (final c in service.characteristics) {
@@ -125,15 +124,15 @@ class BleController extends GetxController {
     }
     return null;
   }
-  // disconnect
+
   Future<void> disconnect() async {
-    if (connectedDevice.value != null) {
-      connectionState.value = BluetoothConnectionState.disconnecting;
-      await connectedDevice.value!.disconnect();
-      connectedDevice.value = null;
-      clearSelection();
-      services.clear();
-      connectionState.value = BluetoothConnectionState.disconnected;
-    }
+    final device = connectedDevice.value;
+    if (device == null) return;
+    connectionState.value = BluetoothConnectionState.disconnecting;
+    await device.disconnect();
+    connectedDevice.value = null;
+    clearSelection();
+    services.clear();
+    connectionState.value = BluetoothConnectionState.disconnected;
   }
 }

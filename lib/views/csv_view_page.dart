@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:ble_app/controllers/files_controller.dart';
+import 'package:ble_app/models/recording_models.dart';
 
 class CsvViewPage extends StatelessWidget {
   const CsvViewPage({super.key, required this.info});

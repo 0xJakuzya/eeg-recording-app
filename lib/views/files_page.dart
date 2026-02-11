@@ -2,6 +2,9 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:ble_app/controllers/files_controller.dart';
+import 'package:ble_app/core/polysomnography_constants.dart';
+import 'package:ble_app/models/recording_models.dart';
+import 'package:ble_app/services/polysomnography_service.dart';
 import 'package:ble_app/views/csv_view_page.dart';
 
 class FilesPage extends StatefulWidget {
@@ -21,6 +24,10 @@ class FilesPageState extends State<FilesPage> {
   bool selectionMode = false;
   Directory? currentDirectory;
   final List<Directory> directoryStack = <Directory>[];
+  final PolysomnographyApiService polysomnographyService =
+      PolysomnographyApiService(
+    baseUrl: PolysomnographyConstants.defaultBaseUrl,
+  );
 
   @override
   void initState() {
@@ -31,8 +38,7 @@ class FilesPageState extends State<FilesPage> {
   void reloadDirectory() {
     selectedPaths.clear();
     selectionMode = false;
-    directoryFuture = FilesPage.filesController
-        .listDirectory(directory: currentDirectory);
+    directoryFuture = FilesPage.filesController.listDirectory(directory: currentDirectory);
   }
 
   void refreshFiles() {
@@ -75,15 +81,8 @@ class FilesPageState extends State<FilesPage> {
           ),
         ) ??
         false;
-
-    if (!confirmed) return;
-
     await FilesPage.filesController.deleteFile(info);
-
-    if (!mounted) return;
-
     refreshFiles();
-
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('Файл "${info.name}" удалён')),
     );
@@ -321,6 +320,10 @@ class FilesPageState extends State<FilesPage> {
     final selectedCount = selectedPaths.length;
     final totalItems = currentFiles.length + currentDirectories.length;
     final allSelected = totalItems > 0 && selectedCount == totalItems;
+    final selectedFileInfos = currentFiles
+        .where((f) => selectedPaths.contains(f.file.path))
+        .toList();
+    final hasSelectedFiles = selectedFileInfos.isNotEmpty;
 
     return SafeArea(
       child: Container(
@@ -360,6 +363,17 @@ class FilesPageState extends State<FilesPage> {
                 allSelected ? Icons.deselect : Icons.select_all,
               ),
               label: Text(allSelected ? 'Снять все' : 'Выбрать все'),
+            ),
+            const SizedBox(width: 8),
+            FilledButton.icon(
+              onPressed: !hasSelectedFiles
+                  ? null
+                  : () async {
+                      await _showPolysomnographyUploadDialog(
+                          context, selectedFileInfos);
+                    },
+              icon: const Icon(Icons.cloud_upload),
+              label: const Text('Отправить'),
             ),
             const SizedBox(width: 8),
             FilledButton.icon(
@@ -430,5 +444,127 @@ class FilesPageState extends State<FilesPage> {
         ),
       ),
     );
+  }
+
+  Future<void> _showPolysomnographyUploadDialog(
+    BuildContext context,
+    List<RecordingFileInfo> files,
+  ) async {
+    final patientIdController = TextEditingController();
+    final patientNameController = TextEditingController();
+    // Частота дискретизации фиксированная и не редактируется.
+    const double samplingFrequency =
+        PolysomnographyConstants.defaultSamplingFrequencyHz;
+    final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Отправка в полисомнографию'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: patientIdController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'ID пациента',
+                      hintText: 'Например, 1',
+                    ),
+                  ),
+                  TextField(
+                    controller: patientNameController,
+                    decoration: const InputDecoration(
+                      labelText: 'Имя пациента',
+                      hintText: 'patient_name',
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Частота дискретизации: ${PolysomnographyConstants.defaultSamplingFrequencyHz.toInt()} Гц',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: Colors.black54,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Отмена'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('Отправить'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+
+    if (!confirmed) return;
+
+    final idText = patientIdController.text.trim();
+    final name = patientNameController.text.trim();
+
+    if (idText.isEmpty || name.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Заполните все поля')),
+      );
+      return;
+    }
+
+    final patientId = int.tryParse(idText);
+    if (patientId == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Неверный формат ID пациента')),
+      );
+      return;
+    }
+
+    try {
+      final uploadedAll = <String>[];
+      final predictions = <String>[];
+
+      for (final info in files) {
+        final result = await polysomnographyService.uploadFileAndPredict(
+          file: info.file,
+          patientId: patientId,
+          patientName: name,
+          samplingFrequency: samplingFrequency,
+        );
+
+        final fileIndex = result.$1;
+        final prediction = result.$2;
+
+        uploadedAll.add(info.file.path);
+        predictions.add('fileIndex=$fileIndex; keys=${prediction.keys.join(',')}');
+      }
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Отправлено файлов: ${files.length}\n'
+            'Файлы: ${uploadedAll.join(', ')}\n'
+            'Предикты: ${predictions.join(' | ')}',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Ошибка отправки: $e'),
+        ),
+      );
+    }
   }
 }

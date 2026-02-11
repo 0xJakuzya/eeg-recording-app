@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:ble_app/views/connection_page.dart';
 import 'package:ble_app/views/recording_page.dart';
 import 'package:ble_app/views/files_page.dart';
+import 'package:ble_app/views/files_processed_page.dart';
 import 'package:ble_app/views/settings_page.dart';
 
 final GlobalKey<FilesPageState> filesPageKey = GlobalKey<FilesPageState>();
@@ -25,6 +26,7 @@ class MainNavigation extends StatelessWidget {
             const ConnectionPage(), // connection page
             const RecordingPage(), // recording page
             FilesPage(key: filesPageKey), // files page
+            const FilesProcessedPage(), // processed files / data processing page
             const SettingsPage(), // settings page
           ],
         ),
@@ -45,6 +47,8 @@ class MainNavigation extends StatelessWidget {
                 icon: Icon(Icons.fiber_manual_record), label: 'Запись'),
             BottomNavigationBarItem(
                 icon: Icon(Icons.folder), label: 'Файлы'),
+            BottomNavigationBarItem(
+                icon: Icon(Icons.timeline), label: 'Обработка'),
             BottomNavigationBarItem(
                 icon: Icon(Icons.settings), label: 'Настройки'),
           ],

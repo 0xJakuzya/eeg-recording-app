@@ -3,27 +3,21 @@
 // supports 1-8 channels with validation.
 class EegSample {
 
-  final DateTime timestamp; // timestamp recorder
-  final List<double> channels; // voltage values 
+  final DateTime timestamp; 
+  final List<double> channels;
 
-  // constructor with validation
   EegSample({
     required this.timestamp,
     required this.channels,
-  }) : assert(channels.isNotEmpty && channels.length <= 8, 
-             'EEG sample must have 1-8 channels');
+  }) : assert(channels.isNotEmpty && channels.length <= 8, 'EEG sample must have 1-8 channels');
 
-  // number of channels in the sample
   int get channelCount => channels.length; 
 
-  // convert sample to csv line format
   String toCsvLine() {
     final timestampMs = timestamp.millisecondsSinceEpoch;
-    // return format: timestamp,channel1,channel2,...
     return '$timestampMs,${channels.join(',')}'; 
   }
-  
-  // create sample from csv line
+
   factory EegSample.fromCsvLine(String line) {
     final parts = line.split(','); 
     return EegSample(

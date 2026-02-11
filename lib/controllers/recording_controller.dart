@@ -11,32 +11,31 @@ import 'package:ble_app/services/csv_stream_service.dart';
 import 'package:ble_app/services/eeg_parser_service.dart';
 import 'package:ble_app/widgets/eeg_foreground_handler.dart';
 import 'package:ble_app/utils/extension.dart';
+import 'package:ble_app/utils/signal_filters.dart';
 
 // controller for recording eeg data
 // handles ble data reception, parsing, and csv writing.
 // manages recording state, sample buffering, and real-time data visualization.
 class RecordingController extends GetxController {
+  final BleController bleController = Get.find<BleController>();
+  final SettingsController settingsController = Get.find<SettingsController>();
 
-  final BleController bleController = Get.find<BleController>(); 
-  final SettingsController settingsController = Get.find<SettingsController>(); 
-  
   late CsvStreamWriter csvWriter;
-  late EegParserService parser; 
+  late EegParserService parser;
+  late Notch50HzFilter polysomnographyFilter;
 
-  RxBool isRecording = false.obs; 
-  Rx<String?> currentFilePath = Rx<String?>(null); 
-  RxInt sampleCount = 0.obs; 
-  Rx<DateTime?> recordingStartTime = Rx<DateTime?>(null); 
-  Rx<Duration> recordingDuration = Duration.zero.obs;
+  final RxBool isRecording = false.obs;
+  final Rx<String?> currentFilePath = Rx<String?>(null);
+  final RxInt sampleCount = 0.obs;
+  final Rx<DateTime?> recordingStartTime = Rx<DateTime?>(null);
+  final Rx<Duration> recordingDuration = Duration.zero.obs;
 
-  // formatted duration as HH:MM:SS
   String get formattedDuration => recordingDuration.value.toHms();
+  final RxList<EegSample> realtimeBuffer = <EegSample>[].obs;
 
-  RxList<EegSample> realtimeBuffer = <EegSample>[].obs;
-
-  StreamSubscription? dataSubscription; 
-  Timer? durationTimer; 
-  bool foregroundTaskInited = false; 
+  StreamSubscription? dataSubscription;
+  Timer? durationTimer;
+  bool foregroundTaskInited = false;
 
   @override
   void onInit() {
@@ -54,15 +53,17 @@ class RecordingController extends GetxController {
           : RecordingConstants.defaultRotationIntervalMinutes,
     );
     csvWriter = CsvStreamWriter(
-      channelCount: channels,
+      channelCount: 1, // 1 channel for write
       rotationInterval: rotation,
     );
     parser = EegParserService(
       channelCount: channels,
       format: settingsController.dataFormat.value,
     );
+    // notch filter 50 Hz for write files
+    polysomnographyFilter = Notch50HzFilter();
   }
-  
+
   // stop recording
   @override
   void onClose() {
@@ -72,7 +73,6 @@ class RecordingController extends GetxController {
 
   // start recording data
   Future<void> startRecording() async {
-
     initServices();
 
     final dataCharacteristic = bleController.selectedDataCharacteristic;
@@ -85,7 +85,7 @@ class RecordingController extends GetxController {
       return;
     }
 
-    // start foreground task 
+    // start foreground task
     if (Platform.isAndroid || Platform.isIOS) {
       await ensureForegroundTaskInited();
       await FlutterForegroundTask.startService(
@@ -96,52 +96,35 @@ class RecordingController extends GetxController {
       );
     }
 
-    // generate filename and start csv
     final now = DateTime.now();
-
-    // base recordings directory (custom or app documents)
-    final String rootDir;
-    final customDir = settingsController.recordingDirectory.value;
-    if (customDir != null && customDir.isNotEmpty) {
-      rootDir = customDir;
-    } else {
-      final appDir = await getApplicationDocumentsDirectory();
-      rootDir = appDir.path;
-    }
-
-    // date folder: e.g. 10.02.2026
+    final rootDir = await resolveRootDir();
     final dateFolderName = now.format('dd.MM.yyyy');
     final dateDirPath = joinPath(rootDir, dateFolderName);
-
-    // session folder: session_1, session_2, ...
     final sessionNumber = await settingsController.getNextSessionNumber();
     final sessionFolderName = 'session_$sessionNumber';
     final sessionDirPath = joinPath(dateDirPath, sessionFolderName);
-
     await Directory(sessionDirPath).create(recursive: true);
-
-    // base filename (session_N), time and parts will be added by CsvStreamWriter
-    final filename = 'session_$sessionNumber.csv';
+    final filename = 'session_$sessionNumber${RecordingConstants.recordingFileExtension}';
 
     await csvWriter.startRecording(filename, baseDirectory: sessionDirPath);
-    currentFilePath.value = csvWriter.filePath; 
+    currentFilePath.value = csvWriter.filePath;
 
     await dataCharacteristic.setNotifyValue(true);
-    dataSubscription = dataCharacteristic.lastValueStream.listen(onDataReceived); 
+    dataSubscription = dataCharacteristic.lastValueStream.listen(onDataReceived);
 
-    isRecording.value = true; 
-    recordingStartTime.value = DateTime.now(); 
-    sampleCount.value = 0; 
-    realtimeBuffer.clear(); 
+    isRecording.value = true;
+    recordingStartTime.value = DateTime.now();
+    sampleCount.value = 0;
+    realtimeBuffer.clear();
 
-    startDurationTimer(); 
+    startDurationTimer();
   }
 
   // stop recording
   Future<void> stopRecording() async {
-    await dataSubscription?.cancel(); 
+    await dataSubscription?.cancel();
     dataSubscription = null;
-    durationTimer?.cancel(); 
+    durationTimer?.cancel();
     durationTimer = null;
     await csvWriter.stopRecording();
     await FlutterForegroundTask.stopService();
@@ -150,11 +133,12 @@ class RecordingController extends GetxController {
     recordingStartTime.value = null;
     recordingDuration.value = Duration.zero;
   }
-  
-  // init foreground task 
+
+  // init foreground task
   Future<void> ensureForegroundTaskInited() async {
     if (foregroundTaskInited) return;
-    final notifPerm = await FlutterForegroundTask.checkNotificationPermission();
+    final notifPerm =
+        await FlutterForegroundTask.checkNotificationPermission();
     if (notifPerm != NotificationPermission.granted) {
       await FlutterForegroundTask.requestNotificationPermission();
     }
@@ -179,42 +163,52 @@ class RecordingController extends GetxController {
   }
 
   // start parse bytes and write to csv
-  void onDataReceived(List<int> bytes) { 
+  void onDataReceived(List<int> bytes) {
+
+    // raw data for vizualization
     final rawSample = parser.parseBytes(bytes);
-    csvWriter.writeSample(rawSample);
     sampleCount.value++;
     realtimeBuffer.add(rawSample);
-    if (realtimeBuffer.length > RecordingConstants.realtimeBufferMaxSize) {
-      realtimeBuffer.removeAt(0);
-    }
+    if (realtimeBuffer.length > RecordingConstants.realtimeBufferMaxSize) {realtimeBuffer.removeAt(0);}
+
+    // processed data for service polysomnography
+    final rawValue = rawSample.channels.isNotEmpty ? rawSample.channels[0] : 0.0;
+    final filteredValue = polysomnographyFilter.process(rawValue);
+    final filteredSample = EegSample(
+      timestamp: rawSample.timestamp,
+      channels: [filteredValue],
+    );
+    csvWriter.writeSample(filteredSample); // write processed data in .txt
   }
-  
+
   // start duration timer
   void startDurationTimer() {
     durationTimer = Timer.periodic(
       RecordingConstants.durationTimerInterval,
-      (timer) {
-        if (recordingStartTime.value != null) {
-          recordingDuration.value =
-              DateTime.now().difference(recordingStartTime.value!);
-        }
+      (_) {
+        final start = recordingStartTime.value;
+        if (start != null) {recordingDuration.value = DateTime.now().difference(start);}
       },
     );
   }
+
   double get sampleRate {
-    if (recordingStartTime.value == null || sampleCount.value == 0) {
-      return 0.0;
-    }
-    final elapsed = DateTime.now().difference(recordingStartTime.value!);
+    final start = recordingStartTime.value;
+    if (start == null || sampleCount.value == 0) return 0.0;
+    final elapsed = DateTime.now().difference(start);
     if (elapsed.inSeconds == 0) return 0.0;
     return sampleCount.value / elapsed.inSeconds;
   }
 
-  String joinPath(String parent, String child) {
-    if (parent.endsWith(Platform.pathSeparator)) {
-      return '$parent$child';
-    }
-    return '$parent${Platform.pathSeparator}$child';
+  Future<String> resolveRootDir() async {
+    final customDir = settingsController.recordingDirectory.value;
+    if (customDir != null && customDir.isNotEmpty) return customDir;
+    final appDir = await getApplicationDocumentsDirectory();
+    return appDir.path;
   }
+
+  String joinPath(String parent, String child) => parent.endsWith(Platform.pathSeparator)
+          ? '$parent$child'
+          : '$parent${Platform.pathSeparator}$child';
 }
 

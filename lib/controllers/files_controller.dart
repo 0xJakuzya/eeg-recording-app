@@ -1,10 +1,10 @@
 import 'dart:io';
-
 import 'package:get/get.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:ble_app/controllers/settings_controller.dart';
-import 'package:ble_app/utils/extension.dart';
+import 'package:ble_app/core/recording_constants.dart';
+import 'package:ble_app/models/recording_models.dart';
 
 class FilesController {
   const FilesController();
@@ -12,65 +12,43 @@ class FilesController {
   SettingsController get settingsController => Get.find<SettingsController>();
 
   Future<Directory> get recordingsDirectory async {
-    final String? customPath = settingsController.recordingDirectory.value;
-
-    if (customPath != null && customPath.isNotEmpty) {
-      return Directory(customPath);
-    }
-
-    return getApplicationDocumentsDirectory();
+    final customPath = settingsController.recordingDirectory.value;
+    return (customPath != null && customPath.isNotEmpty)
+        ? Directory(customPath)
+        : getApplicationDocumentsDirectory();
   }
 
   Future<RecordingDirectoryContent> listDirectory({Directory? directory}) async {
     final root = await recordingsDirectory;
     final dir = directory ?? root;
-
-    if (!await dir.exists()) {
-      return RecordingDirectoryContent(
-        directory: dir,
-        subdirectories: const <Directory>[],
-        files: const <RecordingFileInfo>[],
-      );
-    }
-
-    final entities =
-        await dir.list(recursive: false, followLinks: false).toList();
+    final isRoot = dir.path == root.path;
 
     final subdirs = <Directory>[];
     final files = <RecordingFileInfo>[];
 
-    final isRoot = dir.path == root.path;
-
-    for (final entity in entities) {
-      if (entity is Directory) {
+    await for (final entity
+        in dir.list(recursive: false, followLinks: false)) { if (entity is Directory) {
         final name = entity.path.split(Platform.pathSeparator).last;
-        if (isRoot) {
-          // at root: show only date folders like 10.02.2026
-          final isDateDir =
-              RegExp(r'^\d{2}\.\d{2}\.\d{4}$').hasMatch(name);
-          if (!isDateDir) {
-            continue;
-          }
+        if (isRoot && !RegExp(r'^\d{2}\.\d{2}\.\d{4}$').hasMatch(name)) {
+          continue;
         }
         subdirs.add(entity);
-      } else if (entity is File) {
-        final name = entity.path.toLowerCase();
-        if (!name.endsWith('.csv')) continue;
+      } 
+      else if (entity is File) {
+        final path = entity.path.toLowerCase();
+        if (!path.endsWith(RecordingConstants.recordingFileExtension)) continue;
         final stat = await entity.stat();
-        files.add(
-          RecordingFileInfo(
-            file: entity,
-            name: fileName(entity),
-            modified: stat.modified,
-            sizeBytes: stat.size,
-          ),
-        );
+        files.add(RecordingFileInfo(
+          file: entity,
+          name: fileName(entity),
+          modified: stat.modified,
+          sizeBytes: stat.size,
+        ));
       }
     }
-
-    subdirs.sort(
-      (a, b) => a.path.toLowerCase().compareTo(b.path.toLowerCase()),
-    );
+    
+    // sorted 
+    subdirs.sort( (a, b) => a.path.toLowerCase().compareTo(b.path.toLowerCase()));
     files.sort((a, b) => b.modified.compareTo(a.modified));
 
     return RecordingDirectoryContent(
@@ -80,65 +58,26 @@ class FilesController {
     );
   }
 
-  Future<List<RecordingFileInfo>> listRecordingFiles() async {
-    final content = await listDirectory();
-    return content.files;
+  // list recording files
+  Future<List<RecordingFileInfo>> listRecordingFiles() async => (await listDirectory()).files;
+
+  // get file name
+  String fileName(File file) => file.path.split(Platform.pathSeparator).last;
+
+  // delete file
+  Future<void> deleteFile(RecordingFileInfo info) async { 
+    if (await info.file.exists()) await info.file.delete();
   }
 
-  String fileName(File file) {
-    final parts = file.path.split(Platform.pathSeparator);
-    return parts.isNotEmpty ? parts.last : file.path;
-  }
-
-  Future<void> deleteFile(RecordingFileInfo info) async {
-    final file = info.file;
-    if (await file.exists()) {
-      await file.delete();
-    }
-  }
-
+  // delete directory
   Future<void> deleteDirectory(Directory dir) async {
-    if (await dir.exists()) {
-      await dir.delete(recursive: true);
-    }
+    if (await dir.exists()) await dir.delete(recursive: true);
   }
 
+  // share files 
   Future<void> shareFile(RecordingFileInfo info) async {
-    final file = info.file;
-    if (!await file.exists()) return;
-    final xFile = XFile(file.path);
-    await Share.shareXFiles(
-      [xFile],
-      text: 'EEG запись: ${info.name}',
-    );
+    if (!await info.file.exists()) return;
+    final xFile = XFile(info.file.path);
+    await Share.shareXFiles([xFile], text: 'EEG запись: ${info.name}');
   }
 }
-
-class RecordingFileInfo {
-  final File file;
-  final String name;
-  final DateTime modified;
-  final int sizeBytes;
-  RecordingFileInfo({
-    required this.file,
-    required this.name,
-    required this.modified,
-    required this.sizeBytes,
-  });
-  String get formattedModified => modified.toLocal().format('dd.MM.yyyy HH:mm');
-  String get formattedSize => sizeBytes.formatBytes();
-}
-
-class RecordingDirectoryContent {
-  final Directory directory;
-  final List<Directory> subdirectories;
-  final List<RecordingFileInfo> files;
-
-  RecordingDirectoryContent({
-    required this.directory,
-    required this.subdirectories,
-    required this.files,
-  });
-}
-
-

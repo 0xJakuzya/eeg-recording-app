@@ -31,8 +31,7 @@ class CsvStreamWriter {
 
   // generate header
   String generateHeader() {
-    final channelNames =
-        List.generate(channelCount, (i) => 'channel${i + 1}').join(',');
+    final channelNames = List.generate(channelCount, (i) => 'channel${i + 1}').join(',');
     return 'time,$channelNames';
   }
 
@@ -48,42 +47,41 @@ class CsvStreamWriter {
   Future<void> openNewFile() async {
     final String dirPath;
     final baseDir = baseDirectory;
-    if (baseDir != null && baseDir.isNotEmpty) {
-      dirPath = baseDir;
-    } else {
+    if (baseDir != null && baseDir.isNotEmpty) {dirPath = baseDir;} 
+    else {
       final directory = await getApplicationDocumentsDirectory();
       dirPath = directory.path;
     }
 
     currentFileStartedAt = DateTime.now();
+
     final baseTime = rotationInterval > Duration.zero
         ? currentFileStartedAt!.add(rotationInterval)
         : currentFileStartedAt!;
 
     final fname = buildRotatedFilename(
-      baseFilename ?? 'recording.csv',
+      baseFilename ?? '${RecordingConstants.defaultRecordingBaseName}${RecordingConstants.recordingFileExtension}',
       baseTime,
       partIndex,
     );
 
-    currentFilePath =
-        '$dirPath${dirPath.endsWith(Platform.pathSeparator) ? '' : Platform.pathSeparator}$fname';
+    currentFilePath = '$dirPath${dirPath.endsWith(Platform.pathSeparator) ? '' : Platform.pathSeparator}$fname';
     file = File(currentFilePath!);
     sink = file!.openWrite(mode: FileMode.writeOnly);
-    sink!.writeln(generateHeader());
+    // sink!.writeln(generateHeader());
   }
 
-  String buildRotatedFilename(
-      String originalName, DateTime startedAt, int partIndex) {
+  String buildRotatedFilename(String originalName, DateTime startedAt, int partIndex) {
     final dotIndex = originalName.lastIndexOf('.');
     String ext;
     String base;
     if (dotIndex != -1) {
       base = originalName.substring(0, dotIndex);
       ext = originalName.substring(dotIndex);
-    } else {
+    } 
+    else {
       base = originalName;
-      ext = '.csv';
+      ext = RecordingConstants.recordingFileExtension;
     }
     final datePart = startedAt.format('dd.MM.yyyy');
     final timePart = startedAt.format('HH-mm');
@@ -92,14 +90,12 @@ class CsvStreamWriter {
 
   // write a sample to the buffer
   void writeSample(EegSample sample) {
-    sampleCounter++;
-    buffer.add('$sampleCounter,${sample.channels.join(',')}'); 
-    checkRotation();
-    if (buffer.length >= RecordingConstants.csvBufferSize) { 
-      // flush buffer
-      flushBuffer();
-    }
-  }
+  sampleCounter++;
+  final value = sample.channels.isNotEmpty ? sample.channels[0] : 0.0;
+  buffer.add('$sampleCounter $value'); 
+  checkRotation();
+  if (buffer.length >= RecordingConstants.csvBufferSize) {flushBuffer();}
+}
 
   // write raw data to the buffer
   void writeRawData(DateTime timestamp, List<double> channels) {
@@ -126,11 +122,8 @@ class CsvStreamWriter {
   void checkRotation() {
     if (sink == null || currentFileStartedAt == null) return;
     if (rotationInterval <= Duration.zero) return;
-
     final now = DateTime.now();
-    if (now.difference(currentFileStartedAt!) >= rotationInterval) {
-      rotateFile();
-    }
+    if (now.difference(currentFileStartedAt!) >= rotationInterval) {rotateFile();}
   }
 
   Future<void> rotateFile() async {
@@ -139,7 +132,6 @@ class CsvStreamWriter {
     await sink?.close();
     sink = null;
     file = null;
-
     partIndex++;
     await openNewFile();
   }
@@ -152,7 +144,5 @@ class CsvStreamWriter {
     if (file == null || !await file!.exists()) return 0;
     return await file!.length();
   }
-
-  // check if recording is active
   bool get isRecording => sink != null;
 }
