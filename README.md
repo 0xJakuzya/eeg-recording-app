@@ -1,65 +1,103 @@
-# EEG Recording App
+## EEG Recording App
 
-Мобильное приложение для регистрации ЭЭГ-сигналов с 8-канальных BLE-устройств. Обеспечивает подключение по Bluetooth Low Energy, приём и визуализацию данных в реальном времени, а также потоковую запись сигналов в CSV-файлы с защитой от потери данных. Поддерживается одновременная работа от 1 до 8 каналов и настройка параметров записи
+Мобильное Flutter‑приложение для регистрации ЭЭГ‑сигналов с 8‑канальных BLE‑устройств, управления записями и интеграции с сервером полисомнографии для анализа сна. Поддерживает подключение по Bluetooth Low Energy, приём и визуализацию данных в реальном времени, запись в csv/txt, просмотр файлов и получение предсказаний стадий сна.
+
+---
 
 ## Основные возможности
+- **Подключение к BLE‑устройствам**
+- **Запись ЭЭГ в реальном времени**
+- **Онлайн‑визуализация сигналов**
+- **Работа с файлами**
+- **Обработка сессий сна (полисомнография)**
+- **Настройки**
+---
 
-- **Подключение к BLE‑устройствам** — сканирование и подключение к EEG BLE‑устройствам
-- **Запись данных в реальном времени** — потоковая запись данных в CSV‑файлы с буферизацией
-- **Визуализация сигналов** — отображение сигналов в реальном времени с поддержкой скользящего окна и регулировкой масштаба амплитуды
-- **Поддержка множественных каналов** — запись и визуализация от 1 до 8 каналов одновременно 
-- **Управление файлами** — просмотр и управление записанными CSV‑файлами
-- **Настройки** — конфигурация количества каналов и директории сохранения записей
+## Архитектура данных
 
-## Архитектура приложения
+### Запись ЭЭГ
 
-```
-EEG Device (BLE)
+```text
+EEG Device (ble)
     ↓ 
-BleController (Subscribe)
+BleController (subscribe ble)
     ↓ 
-EegParserService (Bytes → EegSample, int8)
+EegParserService (bytes → eegSample, int8)
     ↓
-CsvStreamWriter (Append + Periodic Flush)
+CsvStreamWriter (append + period flush)
     ↓ 
-File Storage (/Documents/ + period: 5min, 10min.., 1hours)
+File Storage (/Documents/<dd.MM.yyyy>/session_N/*.txt)
 ```
+
+### Обработка и анализ сна
+
+```text
+txt files session
+    ↓
+UploadFile/Predict
+    ↓
+Backend Polysomnography (REST API)
+    ↓
+JSON с предсказаниями стадий сна + индекс session_N
+    ↓
+ProcessedSession (status, prediction, jsonIndex)
+    ↓
+FilesProcessedPage (UI)
+```
+
+---
 
 ## Установка и запуск
 
-1. Убедитесь, что у вас установлен Flutter SDK (3.10.7+)
+1. Установите Flutter SDK (рекомендуется 3.10.7+)
 2. Установите зависимости:
+
    ```bash
    flutter pub get
    ```
+
 3. Запустите приложение:
+
    ```bash
    flutter run
    ```
+---
 
 ## Структура проекта
 
-```
+```text
 lib/
-├── controllers/          # управление состоянием 
-│   ├── ble_controller.dart          # ble подключение и сканирование
-│   ├── recording_controller.dart   # управление записью данных
-│   └── settings_controller.dart     # настройки приложения
-├── services/             # бизнес-логика
-│   ├── csv_stream_service.dart     # потоковая запись в CSV
-│   └── eeg_parser_service.dart      # парсинг BLE байтов
-├── models/               # модели данных
-│   └── eeg_sample.dart              # модель сэмпла EEG
-├── views/                # UI страницы
-│   ├── connection_page.dart         # подключение к устройствам
-│   ├── recording_page.dart          # запись и визуализация
-│   ├── files_page.dart              # управление файлами
-│   └── settings_page.dart           # настройки
-├── widgets/              # виджеты
-│   ├── eeg_plots.dart               # графики сигналов
-│   └── recording_status_card.dart   # статус записи
-└── core/                 # константы и конфигурация
-    ├── ble_constants.dart
-    └── recording_constants.dart
+├── controllers/                    # управление состоянием
+│   ├── ble_controller.dart         # ble‑подключение и сканирование
+│   ├── recording_controller.dart   # управление записью данных и сессиями
+│   ├── settings_controller.dart    # настройки приложения
+│   └── files_controller.dart       # работа с файлами и директориями записей
+│
+├── services/                       # бизнес‑логика
+│   ├── csv_stream_service.dart     # потоковая запись в csv/txt
+│   ├── eeg_parser_service.dart     # парсинг ble‑байтов в выборки ЭЭГ
+│   └── polysomnography_service.dart# HTTP‑клиент для API полисомнографии
+│
+├── models/                         # модели данных
+│   ├── eeg_sample.dart             # модель сэмпла ЭЭГ
+│   ├── recording_models.dart       # описание файлов/директорий записей
+│   └── processed_session.dart      # информация об обработанных сессиях сна
+│
+├── views/                          # экраны приложения
+│   ├── connection_page.dart        # подключение к устройствам
+│   ├── recording_page.dart         # запись и визуализация сигналов
+│   ├── files_page.dart             # управление файлами записей
+│   ├── files_processed_page.dart   # список обработанных сессий сна
+│   ├── csv_view_page.dart          # просмотр содержимого csv/txt
+│   └── session_details_page.dart   # детали предсказаний и гипнограмма (statistics)
+│
+├── widgets/                        # переиспользуемые виджеты
+│   ├── eeg_plots.dart              # графики сигналов ЭЭГ
+│   ├── recording_status_card.dart  # карточка статуса записи
+│   └── connection_status.dart      # статус BLE‑подключения
+│
+└── core/                           # константы и конфигурация
+    ├── ble_constants.dart          # настройки BLE‑сервиса/характеристик
+    ├── recording_constants.dart    # константы записи и формата файлов
+    └── polysomnography_constants.dart # URL и параметры API полисомнографии
 ```
-
