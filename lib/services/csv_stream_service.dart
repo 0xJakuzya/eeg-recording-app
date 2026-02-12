@@ -1,13 +1,13 @@
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:ble_app/core/recording_constants.dart';
-import 'package:ble_app/models/eeg_sample.dart';
+import 'package:ble_app/models/eeg_models.dart';
 import 'package:ble_app/utils/extension.dart';
 
 // service for writing eeg samples to csv files
 // uses a buffer to store samples and periodically flush them to the file.
 // manages file creation, header generation, and stream writing operations.
-class CsvStreamWriter {
+class CsvStreamWriter { 
 
   File? file; 
   IOSink? sink; 

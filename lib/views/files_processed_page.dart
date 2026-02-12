@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:ble_app/controllers/files_controller.dart';
 import 'package:ble_app/core/recording_constants.dart';
-import 'package:ble_app/models/processed_session.dart';
+import 'package:ble_app/models/processed_session_models.dart';
 import 'package:ble_app/views/session_details_page.dart';
 import 'package:ble_app/utils/extension.dart';
 

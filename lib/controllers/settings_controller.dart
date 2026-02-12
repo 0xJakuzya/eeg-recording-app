@@ -1,7 +1,7 @@
 import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ble_app/core/recording_constants.dart';
-import 'package:ble_app/core/data_format.dart';
+import 'package:ble_app/utils/extension.dart';
 
 // controller for application settings
 // manages eeg recording parameters, data format and recording directory.

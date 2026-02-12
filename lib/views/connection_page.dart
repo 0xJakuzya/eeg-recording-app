@@ -3,7 +3,7 @@ import 'package:get/get.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:ble_app/controllers/ble_controller.dart';
 import 'package:ble_app/views/device_details_page.dart';
-import 'package:ble_app/widgets/device_list_tile.dart';
+import 'package:ble_app/widgets/device_list.dart';
 import 'package:ble_app/widgets/connection_status.dart';
 
 // view for displaying the list of bluetooth devices

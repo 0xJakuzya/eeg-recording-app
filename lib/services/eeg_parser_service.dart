@@ -1,5 +1,5 @@
-import 'package:ble_app/core/data_format.dart';
-import 'package:ble_app/models/eeg_sample.dart';
+import 'package:ble_app/utils/extension.dart';
+import 'package:ble_app/models/eeg_models.dart';
 
 /// Service for parsing raw BLE bytes into EEG samples.
 class EegParserService {

@@ -3,7 +3,7 @@ import 'package:get/get.dart';
 import 'package:ble_app/core/recording_constants.dart';
 import 'package:ble_app/controllers/settings_controller.dart';
 import 'package:ble_app/controllers/recording_controller.dart';
-import 'package:ble_app/core/data_format.dart';
+import 'package:ble_app/utils/extension.dart';
 import 'package:ble_app/widgets/eeg_plots.dart';
 import 'package:ble_app/widgets/recording_status_card.dart';
 

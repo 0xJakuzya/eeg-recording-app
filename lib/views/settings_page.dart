@@ -2,7 +2,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:ble_app/controllers/settings_controller.dart';
-import 'package:ble_app/core/data_format.dart';
+import 'package:ble_app/utils/extension.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});

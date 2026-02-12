@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:ble_app/controllers/ble_controller.dart';
-import 'package:ble_app/widgets/characteristic_tile.dart';
+import 'package:ble_app/widgets/characteristic_list.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 
 // view for displaying the details of a connected device

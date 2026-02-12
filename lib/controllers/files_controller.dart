@@ -5,6 +5,8 @@ import 'package:share_plus/share_plus.dart';
 import 'package:ble_app/controllers/settings_controller.dart';
 import 'package:ble_app/core/recording_constants.dart';
 import 'package:ble_app/models/recording_models.dart';
+import 'package:ble_app/models/path_models.dart';
+import 'package:ble_app/utils/extension.dart';
 
 class FilesController {
   const FilesController();
@@ -79,5 +81,31 @@ class FilesController {
     if (!await info.file.exists()) return;
     final xFile = XFile(info.file.path);
     await Share.shareXFiles([xFile], text: 'EEG запись: ${info.name}');
+  }
+
+  Future<String> resolveRootDir() async {
+    final customDir = settingsController.recordingDirectory.value;
+    if (customDir != null && customDir.isNotEmpty) return customDir;
+    final appDir = await getApplicationDocumentsDirectory();
+    return appDir.path;
+  }
+
+  String joinPath(String parent, String child) =>
+      parent.endsWith(Platform.pathSeparator)
+          ? '$parent$child'
+          : '$parent${Platform.pathSeparator}$child';
+
+  Future<SessionPath> getNextSessionPath() async {
+    final now = DateTime.now();
+    final rootDir = await resolveRootDir();
+    final dateFolderName = now.format('dd.MM.yyyy');
+    final dateDirPath = joinPath(rootDir, dateFolderName);
+    final sessionNumber = await settingsController.getNextSessionNumber();
+    final sessionFolderName = 'session_$sessionNumber';
+    final sessionDirPath = joinPath(dateDirPath, sessionFolderName);
+    await Directory(sessionDirPath).create(recursive: true);
+    final filename =
+        'session_$sessionNumber${RecordingConstants.recordingFileExtension}';
+    return SessionPath(sessionDirPath: sessionDirPath, filename: filename);
   }
 }
