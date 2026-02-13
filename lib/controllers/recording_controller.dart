@@ -57,11 +57,11 @@ class RecordingController extends GetxController {
   Future<void> startRecording() async {
 
     initServices();
-    _debugPrintCount = 0; // reset debug counter for new session
 
     // locate EEG data and config characteristics by UUID
     BluetoothCharacteristic? dataChar;
     BluetoothCharacteristic? configChar;
+
     for (final service in bleController.services) {
       final serviceUuid = service.uuid.str;
       if (serviceUuid == BleConstants.eegServiceUuid) {
@@ -160,16 +160,13 @@ class RecordingController extends GetxController {
 
   // parse bytes and write to csv
   void onDataReceived(List<int> bytes) { 
-    final sample = parser.parseBytes(bytes); 
+    final sample = parser.parseBytes(bytes);
 
-    // debug: print first few packets to verify channel mapping
     if (_debugPrintCount < 5) {
       _debugPrintCount++;
       final hex = bytes
           .map((b) => b.toRadixString(16).padLeft(2, '0'))
           .join(' ');
-      print('EEG DEBUG: raw bytes len=${bytes.length}, hex=[$hex]');
-      print('EEG DEBUG: channels (${sample.channels.length}) = ${sample.channels}');
     }
 
     csvWriter.writeSample(sample); 
