@@ -1,3 +1,5 @@
+import 'package:ble_app/utils/extension.dart';
+
 class PolysomnographyConstants {
   PolysomnographyConstants._();
   static const String defaultBaseUrl = 'http://192.168.0.173:8000';
@@ -6,6 +8,6 @@ class PolysomnographyConstants {
   static const String savePredictJsonPath = '/users/save_predict_json';
   static const String defaultChannel = 'C2A2';
   static const double defaultSamplingFrequencyHz = 100.0;
+  static const DataFormat defaultEegDataFormat = DataFormat.eeg24BitVolt;
+  static const bool useRawInt8ForGraph = true;
 }
-
-

@@ -12,7 +12,9 @@ class EegDataPoint {
 
 class EegLineChart extends StatelessWidget {
 
-  final List<List<EegDataPoint>> channelData; 
+  final List<List<EegDataPoint>> channelData;
+  /// Зафиксированный след (отображается блекло)
+  final List<List<EegDataPoint>> persistedChannelData;
   final double windowSeconds;
   final double amplitudeScale;
   final double displayRange;
@@ -20,6 +22,7 @@ class EegLineChart extends StatelessWidget {
   const EegLineChart({
     super.key,
     required this.channelData,
+    this.persistedChannelData = const [],
     required this.windowSeconds,
     this.amplitudeScale = 1.0,
     required this.displayRange,
@@ -27,54 +30,71 @@ class EegLineChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // get the number of channels
-    final int numChannels = channelData.length;
+    final int numChannels = channelData.isNotEmpty
+        ? channelData.length
+        : persistedChannelData.length;
     if (numChannels == 0) {
       return const Center(child: Text('Нет данных'));
     }
 
-    // all available channels
     final List<int> channelIndices =
         List<int>.generate(numChannels, (index) => index);
 
-    // channel step and half height
     const double channelStep = 3.0;
-    const double halfHeight = 1.2; 
+    const double halfHeight = 1.2;
+    final double effectiveWindow = windowSeconds <= 0 ? 1.0 : windowSeconds;
 
     final List<LineChartBarData> lineBarsData = [];
+    final persistedColor = Colors.grey.shade400;
 
-    // get the maximum time
-    double maxTime = 0;
-    final firstChannelPoints = channelData[channelIndices.first];
-    if (firstChannelPoints.isNotEmpty) {
-      maxTime = firstChannelPoints.last.time;
-    }
-    // get the effective window
-    final double effectiveWindow = windowSeconds <= 0 ? 1.0 : windowSeconds;
-    final double minWindowTime = (maxTime - effectiveWindow).clamp(0, maxTime);
-    
-    // get the line bars data
     for (int order = 0; order < channelIndices.length; order++) {
       final int ch = channelIndices[order];
       final double centerY = order * channelStep;
       final double range = displayRange;
 
-      // get the spots
-      final spots = channelData[ch]
-          .where((point) => point.time >= minWindowTime)
-          .map((point) {
-            final norm = (point.amplitude / range).clamp(-1.0, 1.0);
-            return FlSpot(
-              point.time - minWindowTime,
-              centerY + amplitudeScale * norm * halfHeight,
-            );
-          })
-          .toList();
+      final maxCurrentX = ch < channelData.length && channelData[ch].isNotEmpty
+          ? channelData[ch].map((p) => p.time).fold(0.0, (a, b) => a > b ? a : b)
+          : 0.0;
 
-      // add the line bar data
+      if (ch < persistedChannelData.length && persistedChannelData[ch].isNotEmpty) {
+        final persistedSpots = persistedChannelData[ch]
+            .where((p) => p.time > maxCurrentX && p.time <= effectiveWindow)
+            .map((point) {
+              final norm = (point.amplitude / range).clamp(-1.0, 1.0);
+              return FlSpot(
+                point.time,
+                centerY + amplitudeScale * norm * halfHeight,
+              );
+            })
+            .toList();
+        lineBarsData.add(
+          LineChartBarData(
+            spots: persistedSpots,
+            isCurved: true,
+            color: persistedColor,
+            dotData: const FlDotData(show: false),
+            belowBarData: BarAreaData(show: false),
+            barWidth: 1.0,
+          ),
+        );
+      }
+
+      final currentSpots = ch < channelData.length && channelData[ch].isNotEmpty
+          ? channelData[ch]
+              .where((p) => p.time >= 0 && p.time <= effectiveWindow)
+              .map((point) {
+                final norm = (point.amplitude / range).clamp(-1.0, 1.0);
+                return FlSpot(
+                  point.time,
+                  centerY + amplitudeScale * norm * halfHeight,
+                );
+              })
+              .toList()
+          : <FlSpot>[];
+
       lineBarsData.add(
         LineChartBarData(
-          spots: spots,
+          spots: currentSpots,
           isCurved: true,
           color: Colors.black,
           dotData: const FlDotData(show: false),
@@ -104,6 +124,7 @@ class EegLineChart extends StatelessWidget {
       padding: const EdgeInsets.all(8),
       child: LineChart(
         LineChartData(
+          lineTouchData: const LineTouchData(enabled: false),
           lineBarsData: lineBarsData,
           minY: minY,
           maxY: maxY,
@@ -158,6 +179,7 @@ class EegLineChart extends StatelessWidget {
             ),
           ),
         ),
+        duration: Duration.zero,
       ),
     );
   }

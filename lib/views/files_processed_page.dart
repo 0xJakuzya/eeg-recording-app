@@ -109,7 +109,7 @@ class FilesProcessedPage extends StatelessWidget {
     return sessions;
   }
 
-  String _statusText(PredictionStatus status) {
+  String statusText(PredictionStatus status) {
     switch (status) {
       case PredictionStatus.notStarted:
         return 'Предикт не запускался';
@@ -122,7 +122,7 @@ class FilesProcessedPage extends StatelessWidget {
     }
   }
 
-  Icon _statusIcon(PredictionStatus status, BuildContext context) {
+  Icon statusIcon(PredictionStatus status, BuildContext context) {
     switch (status) {
       case PredictionStatus.notStarted:
         return Icon(
@@ -182,7 +182,7 @@ class FilesProcessedPage extends StatelessWidget {
             separatorBuilder: (_, __) => const Divider(height: 1),
             itemBuilder: (context, index) {
               final session = sessions[index];
-              final statusLabel = _statusText(session.predictionStatus);
+              final statusLabel = statusText(session.predictionStatus);
 
               return ListTile(
                 leading: Icon(
@@ -191,7 +191,7 @@ class FilesProcessedPage extends StatelessWidget {
                 ),
                 title: Text(session.id),
                 subtitle: Text(statusLabel),
-                trailing: _statusIcon(session.predictionStatus, context),
+                trailing: statusIcon(session.predictionStatus, context),
                 onTap: () {},
               );
             },

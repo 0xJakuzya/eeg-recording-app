@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:get/get.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ble_app/controllers/settings_controller.dart';
 import 'package:ble_app/core/recording_constants.dart';
 import 'package:ble_app/models/recording_models.dart';
@@ -73,7 +74,32 @@ class FilesController {
 
   // delete directory
   Future<void> deleteDirectory(Directory dir) async {
-    if (await dir.exists()) await dir.delete(recursive: true);
+    if (!await dir.exists()) return;
+    
+    final name = dir.path.split(Platform.pathSeparator).last;
+    final sessionMatch = RegExp(r'^session_(\d+)$').firstMatch(name);
+    final dateMatch = RegExp(r'^(\d{2}\.\d{2}\.\d{4})$').firstMatch(name);
+    
+    await dir.delete(recursive: true);
+    
+    if (dateMatch != null) {
+      final date = dateMatch.group(1)!;
+      await settingsController.resetSessionCounterForDate(date);
+    } else if (sessionMatch != null) {
+      final parent = dir.parent;
+      final parentName = parent.path.split(Platform.pathSeparator).last;
+      final parentDateMatch = RegExp(r'^(\d{2}\.\d{2}\.\d{4})$').firstMatch(parentName);
+      if (parentDateMatch != null) {
+        final date = parentDateMatch.group(1)!;
+        final recalculated = await settingsController.recalculateSessionNumber(parent.path);
+        final prefs = await SharedPreferences.getInstance();
+        final lastDate = prefs.getString(RecordingConstants.keyLastSessionDate);
+        if (lastDate == date) {
+          await prefs.setInt(RecordingConstants.keyLastSessionNumber, recalculated - 1);
+          settingsController.lastSessionNumber.value = recalculated - 1;
+        }
+      }
+    }
   }
 
   // share files 
@@ -95,12 +121,15 @@ class FilesController {
           ? '$parent$child'
           : '$parent${Platform.pathSeparator}$child';
 
+  /// Возвращает путь для новой сессии записи. Каждый вызов — новая папка session_N.
   Future<SessionPath> getNextSessionPath() async {
     final now = DateTime.now();
     final rootDir = await resolveRootDir();
     final dateFolderName = now.format('dd.MM.yyyy');
     final dateDirPath = joinPath(rootDir, dateFolderName);
+
     final sessionNumber = await settingsController.getNextSessionNumber();
+
     final sessionFolderName = 'session_$sessionNumber';
     final sessionDirPath = joinPath(dateDirPath, sessionFolderName);
     await Directory(sessionDirPath).create(recursive: true);

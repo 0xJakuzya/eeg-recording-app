@@ -63,20 +63,20 @@ extension DataFormatX on DataFormat {
     switch (this) {
       case DataFormat.int8:
         return 1;
-      case DataFormat.uint12Le:
-        return 2;
+      case DataFormat.eeg24BitVolt:
+        return 3;
     }
   }
   double get displayRange {
     switch (this) {
       case DataFormat.int8:
-        return 128.0; 
-      case DataFormat.uint12Le:
-        return 4095.0; 
+        return 128.0;
+      case DataFormat.eeg24BitVolt:
+        return 128.0; // график всегда использует масштаб int8
     }
   }
 }
 enum DataFormat {
   int8,
-  uint12Le,
+  eeg24BitVolt,
 }

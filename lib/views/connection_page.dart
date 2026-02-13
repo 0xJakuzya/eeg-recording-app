@@ -4,7 +4,6 @@ import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:ble_app/controllers/ble_controller.dart';
 import 'package:ble_app/views/device_details_page.dart';
 import 'package:ble_app/widgets/device_list.dart';
-import 'package:ble_app/widgets/connection_status.dart';
 
 // view for displaying the list of bluetooth devices
 // shows connected device and available devices from scan results.
@@ -50,8 +49,6 @@ class ConnectionPage extends StatelessWidget {
           ),
           body: Column(
             children: [
-              const SizedBox(height: 8),
-              const ConnectionStatusChip(),
               const SizedBox(height: 20),
               Obx(() {
                 final device = controller.connectedDevice.value;

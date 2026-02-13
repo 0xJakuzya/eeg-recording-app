@@ -209,14 +209,6 @@ class FilesPageState extends State<FilesPage> {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
-          if (snapshot.hasError) {
-            return Center(
-              child: Text(
-                'Ошибка загрузки файлов: ${snapshot.error}',
-                textAlign: TextAlign.center,
-              ),
-            );
-          }
           final content = snapshot.data;
           if (content == null) {
             return const SizedBox.shrink();
@@ -484,55 +476,31 @@ class FilesPageState extends State<FilesPage> {
     final idText = patientIdController.text.trim();
     final name = patientNameController.text.trim();
 
-    if (idText.isEmpty || name.isEmpty) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Заполните все поля')),
+    final patientId = int.parse(idText);
+
+    final uploadedAll = <String>[];
+
+    for (final info in files) {
+
+      await polysomnographyService.uploadTxtFile(
+        file: info.file,
+        patientId: patientId,
+        patientName: name,
+        samplingFrequency: samplingFrequency,
       );
-      return;
+
+      uploadedAll.add(info.file.path);
     }
 
-    final patientId = int.tryParse(idText);
-    if (patientId == null) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Неверный формат ID пациента')),
-      );
-      return;
-    }
+    if (!mounted) return;
 
-    try {
-      final uploadedAll = <String>[];
-
-      for (final info in files) {
-
-        await polysomnographyService.uploadTxtFile(
-          file: info.file,
-          patientId: patientId,
-          patientName: name,
-          samplingFrequency: samplingFrequency,
-        );
-
-        uploadedAll.add(info.file.path);
-      }
-
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Отправлено файлов: ${files.length}\n'
-            'Файлы: ${uploadedAll.join(', ')}',
-          ),
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'Отправлено файлов: ${files.length}\n'
+          'Файлы: ${uploadedAll.join(', ')}',
         ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Ошибка отправки: $e'),
-        ),
-      );
-    }
+      ),
+    );
   }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:ble_app/core/recording_constants.dart';
+import 'package:ble_app/core/polysomnography_constants.dart';
 import 'package:ble_app/controllers/settings_controller.dart';
 import 'package:ble_app/controllers/recording_controller.dart';
 import 'package:ble_app/utils/extension.dart';
@@ -34,23 +35,11 @@ class RecordingPageState extends State<RecordingPage> {
   double get windowSeconds => windowOptionsSeconds[currentWindowIndex];
   double get amplitudeScale => amplitudeScales[currentAmplitudeIndex];
 
-  // build chart data from real-time buffer 
-  List<List<EegDataPoint>> buildChartData() {
-    final channelCount = settingsController.channelCount.value; 
-    final buffer = recordingController.realtimeBuffer; 
-    if (buffer.isNotEmpty) {
-      return List.generate(channelCount, (ch) {
-        return buffer.asMap().entries.map((entry) {
-          final idx = entry.key;
-          final sample = entry.value;
-          final time = idx * RecordingConstants.sampleIntervalSeconds;
-          final amplitude =
-              ch < sample.channels.length ? sample.channels[ch] : 0.0;
-          return EegDataPoint(time: time, amplitude: amplitude);
-        }).toList();
-      });
-    }
-    return <List<EegDataPoint>>[];
+  /// Persisted = зафиксированный след; current = текущий проход (0..window)
+  (List<List<EegDataPoint>> persisted, List<List<EegDataPoint>> current)
+      buildChartData() {
+    final channelCount = settingsController.channelCount.value;
+    return recordingController.getChartData(windowSeconds, channelCount);
   }
   // start or stop recording
   Future<void> toggleRecording() async {
@@ -79,9 +68,9 @@ class RecordingPageState extends State<RecordingPage> {
     return Obx(() {
       final channelCount = settingsController.channelCount.value;
       final isRecording = recordingController.isRecording.value;
-      final chartData = buildChartData();
-      final format = settingsController.dataFormat.value;
-      final displayRange = format.displayRange;
+      final (persisted, current) = buildChartData();
+      final displayRange =
+          PolysomnographyConstants.defaultEegDataFormat.displayRange;
       return Scaffold(
         appBar: AppBar(
           title: Text(
@@ -147,7 +136,8 @@ class RecordingPageState extends State<RecordingPage> {
                               .withOpacity(0.02),
                         ),
                         child: EegLineChart(
-                          channelData: chartData,
+                          channelData: current,
+                          persistedChannelData: persisted,
                           windowSeconds: windowSeconds,
                           amplitudeScale: amplitudeScale,
                           displayRange: displayRange,
