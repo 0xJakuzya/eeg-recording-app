@@ -5,20 +5,20 @@ import 'package:ble_app/models/eeg_models.dart';
 import 'package:ble_app/utils/extension.dart';
 
 // service for writing eeg samples to csv (txt) files
-// return rows: `<index> <value>`
-// filenames: `base_name_<date>_<time>.txt`
-// rotation: `base_name_<date>_<time>_<part_index>.txt`
-class CsvStreamWriter { 
+// format: sample,ch1,ch2,... (comma delimiter, sample = counter, volts for int24Be)
+// channel count configurable via RecordingConstants.csvWriteChannelCount
+class CsvStreamWriter {
 
-  File? file; 
-  IOSink? sink; 
+  File? file;
+  IOSink? sink;
   String? currentFilePath;
   String? baseDirectory;
   String? baseFilename;
   int channelCount;
   int sampleCounter = 0;
+  bool outputVolts = false;
 
-  final List<String> buffer = []; 
+  final List<String> buffer = [];
 
   // rotation settings
   final Duration rotationInterval;
@@ -28,13 +28,8 @@ class CsvStreamWriter {
   CsvStreamWriter({
     this.channelCount = 1,
     required this.rotationInterval,
+    this.outputVolts = false,
   });
-
-  // generate header
-  String generateHeader() {
-    final channelNames = List.generate(channelCount, (i) => 'channel${i + 1}').join(',');
-    return 'time,$channelNames';
-  }
 
   // start recording
   Future<void> startRecording(String filename, {String? baseDirectory}) async {
@@ -66,10 +61,10 @@ class CsvStreamWriter {
       partIndex,
     );
 
-    currentFilePath = '$dirPath${dirPath.endsWith(Platform.pathSeparator) ? '' : Platform.pathSeparator}$fname';
+    currentFilePath =
+        '$dirPath${dirPath.endsWith(Platform.pathSeparator) ? '' : Platform.pathSeparator}$fname';
     file = File(currentFilePath!);
     sink = file!.openWrite(mode: FileMode.writeOnly);
-    // sink!.writeln(generateHeader());
   }
 
   String buildRotatedFilename(String originalName, DateTime startedAt, int partIndex) {
@@ -91,12 +86,20 @@ class CsvStreamWriter {
 
   // write a sample to the buffer
   void writeSample(EegSample sample) {
-  sampleCounter++;
-  final value = sample.channels.isNotEmpty ? sample.channels[0] : 0.0;
-  buffer.add('$sampleCounter $value'); 
-  checkRotation();
-  if (buffer.length >= RecordingConstants.csvBufferSize) {flushBuffer();}
-}
+    sampleCounter++;
+    if (outputVolts) {
+      final chs = sample.channels
+          .take(channelCount)
+          .map((v) => v.toStringAsFixed(6))
+          .join(',');
+      buffer.add('$sampleCounter,$chs');
+    } else {
+      final value = sample.channels.isNotEmpty ? sample.channels[0] : 0.0;
+      buffer.add('$sampleCounter $value');
+    }
+    checkRotation();
+    if (buffer.length >= RecordingConstants.csvBufferSize) flushBuffer();
+  }
 
   // write raw data to the buffer
   void writeRawData(DateTime timestamp, List<double> channels) {

@@ -161,6 +161,9 @@ class SettingsPage extends StatelessWidget {
                 case DataFormat.uint12Le:
                   subtitle = 'int12 (0..4095)';
                   break;
+                case DataFormat.int24Be:
+                  subtitle = 'int24 BE (8 каналов, вольты)';
+                  break;
               }
 
               return ListTile(
@@ -212,6 +215,11 @@ class SettingsPage extends StatelessWidget {
                                 title: const Text('int12'),
                                 onTap: () =>
                                     Navigator.pop(ctx, DataFormat.uint12Le),
+                              ),
+                              ListTile(
+                                title: const Text('int24 (8 каналов, вольты)'),
+                                onTap: () =>
+                                    Navigator.pop(ctx, DataFormat.int24Be),
                               ),
                             ],
                           ),

@@ -3,7 +3,7 @@
 // supports 1-8 channels with validation.
 class EegSample {
 
-  final DateTime timestamp; 
+  final DateTime timestamp;
   final List<double> channels;
 
   EegSample({

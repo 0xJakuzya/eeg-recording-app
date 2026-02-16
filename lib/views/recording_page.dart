@@ -34,10 +34,13 @@ class RecordingPageState extends State<RecordingPage> {
   double get windowSeconds => windowOptionsSeconds[currentWindowIndex];
   double get amplitudeScale => amplitudeScales[currentAmplitudeIndex];
 
-  // build chart data from real-time buffer 
+  // build chart data from real-time buffer
   List<List<EegDataPoint>> buildChartData() {
-    final channelCount = settingsController.channelCount.value; 
-    final buffer = recordingController.realtimeBuffer; 
+    final format = settingsController.dataFormat.value;
+    final channelCount = format == DataFormat.int24Be
+        ? 8
+        : settingsController.channelCount.value;
+    final buffer = recordingController.realtimeBuffer;
     if (buffer.isNotEmpty) {
       return List.generate(channelCount, (ch) {
         return buffer.asMap().entries.map((entry) {
@@ -77,10 +80,12 @@ class RecordingPageState extends State<RecordingPage> {
   @override
   Widget build(BuildContext context) {
     return Obx(() {
-      final channelCount = settingsController.channelCount.value;
+      final format = settingsController.dataFormat.value;
+      final channelCount = format == DataFormat.int24Be
+          ? 8
+          : settingsController.channelCount.value;
       final isRecording = recordingController.isRecording.value;
       final chartData = buildChartData();
-      final format = settingsController.dataFormat.value;
       final displayRange = format.displayRange;
       return Scaffold(
         appBar: AppBar(
