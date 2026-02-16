@@ -5,7 +5,7 @@ import 'package:ble_app/models/eeg_models.dart';
 import 'package:ble_app/utils/extension.dart';
 
 // service for writing eeg samples to csv (txt) files
-// format: sample,ch1,ch2,... (comma delimiter, sample = counter, volts for int24Be)
+// format: sample;ch1;ch2;... (semicolon delimiter, sample = counter, volts for int24Be)
 // channel count configurable via RecordingConstants.csvWriteChannelCount
 class CsvStreamWriter {
 
@@ -91,8 +91,8 @@ class CsvStreamWriter {
       final chs = sample.channels
           .take(channelCount)
           .map((v) => v.toStringAsFixed(6))
-          .join(',');
-      buffer.add('$sampleCounter,$chs');
+          .join(';');
+      buffer.add('$sampleCounter;$chs');    
     } else {
       final value = sample.channels.isNotEmpty ? sample.channels[0] : 0.0;
       buffer.add('$sampleCounter $value');
@@ -110,13 +110,21 @@ class CsvStreamWriter {
   // flush the buffer to disk
   void flushBuffer() {
     if (buffer.isEmpty || sink == null) return;
-    sink!.writeAll(buffer, '\n');
+    sink!.write(buffer.join('\n'));
+    sink!.writeln(); // newline after last element, avoid overlap at flush boundary
     buffer.clear();
   }
 
-  // stop recording and close file
-  Future<void> stopRecording() async {
-    flushBuffer(); 
+  /// Stops recording, writes metadata footer. Use durationSeconds from RecordingController.
+  Future<void> stopRecording({
+    double? durationSeconds,
+  }) async {
+    flushBuffer();
+    if (sink != null && durationSeconds != null && durationSeconds > 0) {
+      final effHz = sampleCounter / durationSeconds;
+      sink!.writeln(
+          '# duration_seconds=${durationSeconds.toStringAsFixed(1)};sample_count=$sampleCounter;effective_hz=${effHz.toStringAsFixed(0)}');
+    }
     await sink?.flush();
     await sink?.close();
     sink = null;

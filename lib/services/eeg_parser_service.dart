@@ -15,6 +15,42 @@ class EegParserService {
   int get bytesPerChannel => format.bytesPerChannel;
   int get expectedPacketSize => channelCount * bytesPerChannel;
 
+  /// For int24Be: packet can contain multiple samples (e.g. 100 bytes = 4 samples).
+  /// Returns all samples from the packet. For other formats returns single-element list.
+  List<EegSample> parseAllBytes(List<int> bytes) {
+    if (format == DataFormat.int24Be) {
+      return _parseInt24BeAll(bytes);
+    }
+    return [parseBytes(bytes)];
+  }
+
+  /// int24Be, 8 channels: [packet_header 2b][sample0: 8ch×3][sample1: 24b][sample2...]
+  /// 100 bytes = 2 + 4×24 = 98 → 4 samples. One header per packet, samples contiguous.
+  List<EegSample> _parseInt24BeAll(List<int> bytes) {
+    const int packetHeaderBytes = 2;
+    const int eegChannels = 8;
+    const int bytesPerSample = eegChannels * 3; // 24
+    final samples = <EegSample>[];
+    int offset = packetHeaderBytes;
+    while (offset + bytesPerSample <= bytes.length) {
+      final channels = <double>[];
+      for (int i = 0; i < eegChannels; i++) {
+        final base = offset + i * 3;
+        final b0 = bytes[base];
+        final b1 = bytes[base + 1];
+        final b2 = bytes[base + 2];
+        final raw24 = (b0 << 16) | (b1 << 8) | b2;
+        final signed = raw24 > 0x7FFFFF ? raw24 - (1 << 24) : raw24;
+        final volts = signed *
+            (RecordingConstants.adcVrefVolts / RecordingConstants.max24Bit);
+        channels.add(volts);
+      }
+      samples.add(EegSample(timestamp: DateTime.now(), channels: channels));
+      offset += bytesPerSample;
+    }
+    return samples.isNotEmpty ? samples : [parseBytes(bytes)];
+  }
+
   EegSample parseBytes(List<int> bytes) {
     final channels = <double>[];
     final timestamp = DateTime.now();

@@ -508,12 +508,14 @@ class FilesPageState extends State<FilesPage> {
       final uploadedAll = <String>[];
 
       for (final info in files) {
+        final meta = await CsvRecordingMetadata.fromFile(info.file);
+        final freq = meta?.effectiveHz ?? samplingFrequency;
 
         await polysomnographyService.uploadTxtFile(
           file: info.file,
           patientId: patientId,
           patientName: name,
-          samplingFrequency: samplingFrequency,
+          samplingFrequency: freq,
         );
 
         uploadedAll.add(info.file.path);

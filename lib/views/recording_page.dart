@@ -36,10 +36,7 @@ class RecordingPageState extends State<RecordingPage> {
 
   // build chart data from real-time buffer
   List<List<EegDataPoint>> buildChartData() {
-    final format = settingsController.dataFormat.value;
-    final channelCount = format == DataFormat.int24Be
-        ? 8
-        : settingsController.channelCount.value;
+    final channelCount = settingsController.channelCount.value;
     final buffer = recordingController.realtimeBuffer;
     if (buffer.isNotEmpty) {
       return List.generate(channelCount, (ch) {
