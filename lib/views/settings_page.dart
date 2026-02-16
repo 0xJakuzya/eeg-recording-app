@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:ble_app/controllers/settings_controller.dart';
 import 'package:ble_app/utils/extension.dart';
+import 'package:ble_app/widgets/device_control_section.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
@@ -146,6 +147,8 @@ class SettingsPage extends StatelessWidget {
                   color: Theme.of(context).colorScheme.primary,
                 ),
           ),
+          const SizedBox(height: 8),
+          DeviceControlSection(settingsController: settingsController),
           const SizedBox(height: 8),
           Card(
             child: Obx(() {

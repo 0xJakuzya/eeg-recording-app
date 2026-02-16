@@ -4,9 +4,10 @@ import 'package:ble_app/core/recording_constants.dart';
 import 'package:ble_app/models/eeg_models.dart';
 import 'package:ble_app/utils/extension.dart';
 
-// service for writing eeg samples to csv files
-// uses a buffer to store samples and periodically flush them to the file.
-// manages file creation, header generation, and stream writing operations.
+// service for writing eeg samples to csv (txt) files
+// return rows: `<index> <value>`
+// filenames: `base_name_<date>_<time>.txt`
+// rotation: `base_name_<date>_<time>_<part_index>.txt`
 class CsvStreamWriter { 
 
   File? file; 

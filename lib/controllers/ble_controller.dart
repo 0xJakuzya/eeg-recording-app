@@ -106,11 +106,61 @@ class BleController extends GetxController {
     if (pickFrom(preferredServices)) return;
     pickFrom(discoveredServices);
   }
-
+// clear selected data characteristic
   void clearSelection() {
     selectedDataServiceUuid.value = null;
     selectedDataCharUuid.value = null;
   }
+
+  /// Command characteristic for EEG device (UUID fff2)
+  BluetoothCharacteristic? get commandCharacteristic {
+    for (final service in services) {
+      for (final c in service.characteristics) {
+        if (c.uuid.str.toLowerCase() ==
+            BleConstants.commandCharUuid.toLowerCase()) {
+          return c;
+        }
+      }
+    }
+    return null;
+  }
+
+  /// First writable characteristic as fallback
+  BluetoothCharacteristic? get writableCharacteristic {
+    for (final service in services) {
+      for (final c in service.characteristics) {
+        if (c.properties.write || c.properties.writeWithoutResponse) {
+          return c;
+        }
+      }
+    }
+    return null;
+  }
+
+  /// Sends a text command to the EEG device. Commands must end with ";"
+  Future<bool> sendCommand(String command) async {
+    final char = commandCharacteristic ?? writableCharacteristic;
+    if (char == null) return false;
+    if (connectionState.value != BluetoothConnectionState.connected) {
+      return false;
+    }
+    try {
+      var cmd = command.trim();
+      if (!cmd.endsWith(';')) cmd = '$cmd;';
+      if (char.properties.write) {
+        await char.write(cmd.codeUnits);
+      } else if (char.properties.writeWithoutResponse) {
+        await char.write(cmd.codeUnits, withoutResponse: true);
+      } else {
+        return false;
+      }
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  // get selected data characteristic
   BluetoothCharacteristic? get selectedDataCharacteristic {
     final sUuid = selectedDataServiceUuid.value;
     final cUuid = selectedDataCharUuid.value;
@@ -125,14 +175,34 @@ class BleController extends GetxController {
     return null;
   }
 
+  // disconnect from device
   Future<void> disconnect() async {
     final device = connectedDevice.value;
     if (device == null) return;
+
+    final writeChar = commandCharacteristic ?? writableCharacteristic;
+    if (writeChar != null) {
+      try {
+        await writeChar.write(BleConstants.cmdOff.codeUnits);
+        await Future.delayed(const Duration(milliseconds: 200));
+      } catch (_) {}
+    }
+
+    final characteristic = selectedDataCharacteristic;
+    if (characteristic != null) {
+      try {
+        await characteristic.setNotifyValue(false);
+      } catch (_) {}
+    }
+
     connectionState.value = BluetoothConnectionState.disconnecting;
-    await device.disconnect();
-    connectedDevice.value = null;
-    clearSelection();
-    services.clear();
-    connectionState.value = BluetoothConnectionState.disconnected;
+    try {
+      await device.disconnect();
+      clearSelection();
+      services.clear();
+    } finally {
+      connectedDevice.value = null;
+      connectionState.value = BluetoothConnectionState.disconnected;
+    }
   }
 }

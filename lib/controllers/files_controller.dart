@@ -5,8 +5,17 @@ import 'package:share_plus/share_plus.dart';
 import 'package:ble_app/controllers/settings_controller.dart';
 import 'package:ble_app/core/recording_constants.dart';
 import 'package:ble_app/models/recording_models.dart';
-import 'package:ble_app/models/path_models.dart';
 import 'package:ble_app/utils/extension.dart';
+
+
+class SessionPath {
+  const SessionPath({
+    required this.sessionDirPath,
+    required this.filename,
+  });
+  final String sessionDirPath;
+  final String filename;
+}
 
 class FilesController {
   const FilesController();

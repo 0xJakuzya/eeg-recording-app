@@ -14,4 +14,7 @@ class RecordingConstants {
   static const String keyLastSessionNumber = 'last_session_number';
   static const String recordingFileExtension = '.txt';
   static const String defaultRecordingBaseName = 'recording';
+
+  static const List<int> supportedSamplingRates = [50, 100, 250, 500, 1000];
+  static const int defaultSamplingRateHz = 250;
 }
