@@ -85,6 +85,38 @@ class FilesController {
     if (await dir.exists()) await dir.delete(recursive: true);
   }
 
+  static final _sessionFolderRegex = RegExp(r'^session_(\d+)$');
+
+  /// Scans all date and session folders, returns max session number. Returns 0 if none.
+  Future<int> getMaxExistingSessionNumber() async {
+    int maxSession = 0;
+    final root = await recordingsDirectory;
+    if (!await root.exists()) return 0;
+
+    await for (final entity in root.list(recursive: false, followLinks: false)) {
+      if (entity is! Directory) continue;
+      final dateName = entity.path.split(Platform.pathSeparator).last;
+      if (!RegExp(r'^\d{2}\.\d{2}\.\d{4}$').hasMatch(dateName)) continue;
+
+      await for (final sub in entity.list(recursive: false, followLinks: false)) {
+        if (sub is! Directory) continue;
+        final sessionName = sub.path.split(Platform.pathSeparator).last;
+        final match = _sessionFolderRegex.firstMatch(sessionName);
+        if (match != null) {
+          final n = int.tryParse(match.group(1) ?? '0') ?? 0;
+          if (n > maxSession) maxSession = n;
+        }
+      }
+    }
+    return maxSession;
+  }
+
+  /// Syncs last_session_number with actual max session on disk. Call after deleting folders.
+  Future<void> syncSessionCounter() async {
+    final maxSession = await getMaxExistingSessionNumber();
+    await settingsController.setLastSessionNumber(maxSession);
+  }
+
   // share files 
   Future<void> shareFile(RecordingFileInfo info) async {
     if (!await info.file.exists()) return;

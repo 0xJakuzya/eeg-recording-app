@@ -185,6 +185,9 @@ class FilesPageState extends State<FilesPage> {
                 for (final dir in toDeleteDirs) {
                   await FilesPage.filesController.deleteDirectory(dir);
                 }
+                if (toDeleteDirs.isNotEmpty) {
+                  await FilesPage.filesController.syncSessionCounter();
+                }
 
                 for (final info in toDeleteFiles) {
                   await FilesPage.filesController.deleteFile(info);
