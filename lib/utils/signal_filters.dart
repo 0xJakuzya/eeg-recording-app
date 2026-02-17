@@ -1,3 +1,4 @@
+/// Фильтр подавления сетевой частоты 50 Гц (требование модели анализа).
 class Notch50HzFilter {
   double prevInput = 0.0;
   bool hasPrev = false;

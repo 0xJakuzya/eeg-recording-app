@@ -13,18 +13,23 @@ class RecordingConstants {
   static const String keyRecordingDirectory = 'recording_directory'; 
   static const String keyRotationIntervalMinutes = 'recording_rotation_minutes';
   static const String keyLastSessionNumber = 'last_session_number';
-  static const String recordingFileExtension = '.csv';
+  static const String recordingFileExtension = '.txt';
   static const String defaultRecordingBaseName = 'recording';
 
   static const List<int> supportedSamplingRates = [50, 100, 250, 500, 1000];
-  static const int defaultSamplingRateHz = 250;
+  /// Рекомендуется 100 Гц для совместимости с моделью анализа.
+  static const int defaultSamplingRateHz = 100;
 
   /// ADC reference voltage for 24-bit format (volts). Formula: volts = raw * (Vref / 2^23)
   static const double adcVrefVolts = 1.2;
   static const int max24Bit = 1 << 23; // 8388608
 
-  /// Number of channels to write to CSV (1–8). Edit to record 1, 2, etc. channels.
-  static const int csvWriteChannelCount = 8;
+  /// Число каналов в файле. Для модели анализа требуется 1 канал (TXT — одноканальный).
+  static const int csvWriteChannelCount = 1;
+
+  /// Разделитель в записи файла: пробел ' ', двоеточие ':', точка с запятой ';' и т.д.
+  static const String csvDelimiter = ' ';
+
 
   /// Масштаб: 7 µV/мм. Для 10 мм размаха: 70 µV = 0.00007 В
   static const double eegScaleMicrovoltsPerMm = 7.0;

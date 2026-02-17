@@ -5,8 +5,7 @@ import 'package:ble_app/models/eeg_models.dart';
 import 'package:ble_app/utils/extension.dart';
 
 // service for writing eeg samples to csv (txt) files
-// format: sample;ch1;ch2;... (semicolon delimiter, sample = counter, volts for int24Be)
-// channel count configurable via RecordingConstants.csvWriteChannelCount
+// format: sample{delim}ch1{delim}ch2... — delimiter from RecordingConstants.csvDelimiter
 class CsvStreamWriter {
 
   File? file;
@@ -87,15 +86,16 @@ class CsvStreamWriter {
   // write a sample to the buffer
   void writeSample(EegSample sample) {
     sampleCounter++;
+    final delim = RecordingConstants.csvDelimiter;
     if (outputVolts) {
       final chs = sample.channels
           .take(channelCount)
           .map((v) => v.toStringAsFixed(6))
-          .join(';');
-      buffer.add('$sampleCounter;$chs');    
+          .join(delim);
+      buffer.add('$sampleCounter$delim$chs');
     } else {
       final value = sample.channels.isNotEmpty ? sample.channels[0] : 0.0;
-      buffer.add('$sampleCounter $value');
+      buffer.add('$sampleCounter$delim$value');
     }
     checkRotation();
     if (buffer.length >= RecordingConstants.csvBufferSize) flushBuffer();
