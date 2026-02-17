@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 
 // widget for displaying eeg line chart
 // supports 1-8 channels
-// displays time and amplitude of the eeg signal
 class EegDataPoint {
   final double time;
   final double amplitude;
@@ -11,8 +10,7 @@ class EegDataPoint {
 }
 
 class EegLineChart extends StatelessWidget {
-
-  final List<List<EegDataPoint>> channelData; 
+  final List<List<EegDataPoint>> channelData;
   final double windowSeconds;
   final double amplitudeScale;
   final double displayRange;
@@ -27,62 +25,47 @@ class EegLineChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // get the number of channels
     final int numChannels = channelData.length;
     if (numChannels == 0) {
       return const Center(child: Text('Нет данных'));
     }
 
-    // all available channels
     final List<int> channelIndices =
         List<int>.generate(numChannels, (index) => index);
 
-    // channel step and half height
     const double channelStep = 3.0;
-    const double halfHeight = 1.2; 
+    const double halfHeight = 0.7;
+    final double effectiveWindow = windowSeconds <= 0 ? 1.0 : windowSeconds;
+    final double maxX = effectiveWindow;
 
     final List<LineChartBarData> lineBarsData = [];
 
-    // get the maximum time
-    double maxTime = 0;
-    final firstChannelPoints = channelData[channelIndices.first];
-    if (firstChannelPoints.isNotEmpty) {
-      maxTime = firstChannelPoints.last.time;
-    }
-    // get the effective window
-    final double effectiveWindow = windowSeconds <= 0 ? 1.0 : windowSeconds;
-    final double minWindowTime = (maxTime - effectiveWindow).clamp(0, maxTime);
-    
-    // get the line bars data
     for (int order = 0; order < channelIndices.length; order++) {
       final int ch = channelIndices[order];
       final double centerY = order * channelStep;
       final double range = displayRange;
 
-      // get the spots
-      final spots = channelData[ch]
-          .where((point) => point.time >= minWindowTime)
-          .map((point) {
-            final norm = (point.amplitude / range).clamp(-1.0, 1.0);
-            return FlSpot(
-              point.time - minWindowTime,
-              centerY + amplitudeScale * norm * halfHeight,
-            );
-          })
-          .toList();
+      final spots = channelData[ch].map((point) {
+        final norm = (point.amplitude / range).clamp(-1.0, 1.0);
+        final x = point.time.clamp(0.0, effectiveWindow);
+        return FlSpot(
+          x,
+          centerY + amplitudeScale * norm * halfHeight,
+        );
+      }).toList();
 
-      // add the line bar data
       lineBarsData.add(
         LineChartBarData(
           spots: spots,
           isCurved: true,
+          curveSmoothness: 0.1,
           color: Colors.black,
           dotData: const FlDotData(show: false),
           belowBarData: BarAreaData(show: false),
-          barWidth: 1.5,
+          barWidth: 0.8,
         ),
       );
-    } 
+    }
     // get the y labels
     final Map<double, String> yLabels = {};
     for (int order = 0; order < channelIndices.length; order++) {
@@ -95,9 +78,7 @@ class EegLineChart extends StatelessWidget {
     final double minY = -channelStep;
     final double maxY = (channelIndices.length - 1) * channelStep + channelStep;
 
-    // get the min and max x
     final double minX = 0;
-    final double maxX = effectiveWindow;
 
     // return the container
     return Container(
