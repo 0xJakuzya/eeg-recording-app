@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:get/get.dart';
-import 'package:ble_app/controllers/ble_controller.dart';
-import 'package:ble_app/controllers/files_controller.dart';
-import 'package:ble_app/controllers/settings_controller.dart';
-import 'package:ble_app/controllers/recording_controller.dart';
-import 'package:ble_app/core/app_theme.dart';
-import 'package:ble_app/services/eeg_foreground_service.dart';
-import 'package:ble_app/views/main_navigation.dart';
+import 'package:ble_app/features/ble/ble_controller.dart';
+import 'package:ble_app/features/files/files_controller.dart';
+import 'package:ble_app/features/settings/settings_controller.dart';
+import 'package:ble_app/features/recording/recording_controller.dart';
+import 'package:ble_app/features/recording/eeg_foreground_service.dart';
+import 'package:ble_app/core/theme/app_theme.dart';
+import 'package:ble_app/features/navigation/main_navigation.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -22,7 +22,7 @@ void main() async {
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
-  
+
   @override
   Widget build(BuildContext context) {
     return GetMaterialApp(
