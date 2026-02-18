@@ -9,7 +9,8 @@ class FilesSelectionBar extends StatelessWidget {
     required this.allSelected,
     required this.hasSelectedFiles,
     required this.onToggleSelectAll,
-    required this.onUploadSelected,
+    this.onUploadSelected,
+    this.onShareSelected,
     required this.onDeleteSelected,
   });
 
@@ -20,6 +21,7 @@ class FilesSelectionBar extends StatelessWidget {
 
   final VoidCallback onToggleSelectAll;
   final VoidCallback? onUploadSelected;
+  final VoidCallback? onShareSelected;
   final VoidCallback? onDeleteSelected;
 
   @override
@@ -58,24 +60,42 @@ class FilesSelectionBar extends StatelessWidget {
                 style: const TextStyle(color: AppTheme.accentSecondary),
               ),
             ),
-            const SizedBox(width: 8),
-            FilledButton.icon(
-              onPressed: hasSelectedFiles ? onUploadSelected : null,
-              icon: const Icon(Icons.cloud_upload),
-              label: const Text('Отправить'),
-              style: FilledButton.styleFrom(
-                backgroundColor: AppTheme.accentPrimary,
-                foregroundColor: AppTheme.textPrimary,
+            if (onShareSelected != null) ...[
+              const SizedBox(width: 8),
+              FilledButton.icon(
+                onPressed: hasSelectedFiles ? onShareSelected : null,
+                icon: const Icon(Icons.share),
+                label: const Text('Поделиться'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppTheme.accentSecondary,
+                  foregroundColor: AppTheme.textPrimary,
+                ),
               ),
-            ),
+            ],
+            if (onUploadSelected != null) ...[
+              const SizedBox(width: 8),
+              Tooltip(
+                message: 'Отправить',
+                child: IconButton.filled(
+                  onPressed: hasSelectedFiles ? onUploadSelected : null,
+                  icon: const Icon(Icons.cloud_upload),
+                  style: IconButton.styleFrom(
+                    backgroundColor: AppTheme.accentPrimary,
+                    foregroundColor: AppTheme.textPrimary,
+                  ),
+                ),
+              ),
+            ],
             const SizedBox(width: 8),
-            FilledButton.icon(
-              onPressed: selectedCount == 0 ? null : onDeleteSelected,
-              icon: const Icon(Icons.delete),
-              label: const Text('Удалить'),
-              style: FilledButton.styleFrom(
-                backgroundColor: AppTheme.statusFailed,
-                foregroundColor: AppTheme.textPrimary,
+            Tooltip(
+              message: 'Удалить',
+              child: IconButton.filled(
+                onPressed: selectedCount == 0 ? null : onDeleteSelected,
+                icon: const Icon(Icons.delete),
+                style: IconButton.styleFrom(
+                  backgroundColor: AppTheme.statusFailed,
+                  foregroundColor: AppTheme.textPrimary,
+                ),
               ),
             ),
           ],

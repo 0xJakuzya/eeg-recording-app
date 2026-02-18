@@ -6,11 +6,13 @@ import 'package:ble_app/controllers/files_controller.dart';
 import 'package:ble_app/controllers/settings_controller.dart';
 import 'package:ble_app/controllers/recording_controller.dart';
 import 'package:ble_app/core/app_theme.dart';
+import 'package:ble_app/services/eeg_foreground_service.dart';
 import 'package:ble_app/views/main_navigation.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   FlutterForegroundTask.initCommunicationPort();
+  await stopOrphanedForegroundServiceIfNeeded();
   Get.put(SettingsController());
   Get.put(FilesController());
   Get.put(BleController());

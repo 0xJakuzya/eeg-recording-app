@@ -82,3 +82,17 @@ Future<void> startEegForegroundService() async {
 Future<void> stopEegForegroundService() async {
   await FlutterForegroundTask.stopService();
 }
+
+/// Stops foreground service if it's still running after app restart (e.g. after crash).
+/// Call at app startup when recording is not active.
+Future<void> stopOrphanedForegroundServiceIfNeeded() async {
+  try {
+    final isRunning = await FlutterForegroundTask.isRunningService;
+    if (isRunning) {
+      await ensureEegForegroundTaskInited();
+      await FlutterForegroundTask.stopService();
+    }
+  } catch (_) {
+    // ignore: service may not be initialized yet
+  }
+}

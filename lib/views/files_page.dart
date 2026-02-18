@@ -134,16 +134,25 @@ class FilesPageState extends State<FilesPage> {
               allSelected: allSelected,
               hasSelectedFiles: hasSelectedFiles,
               onToggleSelectAll: handleToggleSelectAll,
-              onUploadSelected: () async {
+              onShareSelected: () async {
                 final selectedFileInfos = currentFiles
                     .where((f) => selectedPaths.contains(f.file.path))
                     .toList();
                 if (selectedFileInfos.isEmpty) return;
-                await showPolysomnographyUploadDialog(
-                  context,
-                  selectedFileInfos,
-                );
+                await FilesPage.filesController.shareFiles(selectedFileInfos);
               },
+              onUploadSelected: _hasSelectedSessionFolders() || _isAtDateLevel()
+                  ? null
+                  : () async {
+                      final selectedFileInfos = currentFiles
+                          .where((f) => selectedPaths.contains(f.file.path))
+                          .toList();
+                      if (selectedFileInfos.isEmpty) return;
+                      await showPolysomnographyUploadDialog(
+                        context,
+                        selectedFileInfos,
+                      );
+                    },
               onDeleteSelected: () async {
                 final toDeleteFiles = currentFiles
                     .where((f) => selectedPaths.contains(f.file.path))
@@ -351,17 +360,14 @@ class FilesPageState extends State<FilesPage> {
                           'Дата: ${info.formattedModified}   •   Размер: ${info.formattedSize}',
                           style: const TextStyle(color: AppTheme.textSecondary),
                         ),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            IconButton(
-                              icon: const Icon(Icons.share, color: AppTheme.textSecondary),
-                              onPressed: () => FilesPage
-                                  .filesController
-                                  .shareFile(info),
-                            ),
-                          ],
-                        ),
+                        trailing: selectionMode
+                            ? null
+                            : IconButton(
+                                icon: const Icon(Icons.share, color: AppTheme.textSecondary),
+                                onPressed: () => FilesPage
+                                    .filesController
+                                    .shareFile(info),
+                              ),
                         onTap: () {
                           if (selectionMode) {
                             setState(() {
@@ -421,6 +427,20 @@ class FilesPageState extends State<FilesPage> {
 
   bool get hasSelectedFiles {
     return currentFiles.any((f) => selectedPaths.contains(f.file.path));
+  }
+
+  bool _hasSelectedSessionFolders() {
+    return currentDirectories.any((d) {
+      if (!selectedPaths.contains(d.path)) return false;
+      final name = d.path.split(Platform.pathSeparator).last;
+      return RegExp(r'^session_\d+$').hasMatch(name);
+    });
+  }
+
+  bool _isAtDateLevel() {
+    if (currentDirectory == null) return false;
+    final name = currentDirectory!.path.split(Platform.pathSeparator).last;
+    return RegExp(r'^\d{2}\.\d{2}\.\d{4}$').hasMatch(name);
   }
 
   void handleToggleSelectAll() {

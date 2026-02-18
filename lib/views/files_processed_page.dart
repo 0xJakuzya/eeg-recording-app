@@ -28,13 +28,23 @@ class FilesProcessedPageState extends State<FilesProcessedPage> {
   bool isProcessingInProgress = false;
   Future<List<ProcessedSession>>? sessionsLoadFuture;
 
+  static int _sessionNumber(String id) {
+    final m = RegExp(r'session_(\d+)$').firstMatch(id);
+    return m != null ? (int.tryParse(m.group(1) ?? '') ?? -1) : -1;
+  }
+
   Future<List<ProcessedSession>> loadTodaySessions() async {
     final root = await filesController.recordingsDirectory;
     final dateDir = await resolveDateDirectory(root);
     final dateEntities =
         await dateDir.list(recursive: false, followLinks: false).toList();
     final sessions = await collectSessionsFromDateDir(dateEntities);
-    sessions.sort((a, b) => a.id.compareTo(b.id));
+    sessions.sort((a, b) {
+      final aNum = _sessionNumber(a.id);
+      final bNum = _sessionNumber(b.id);
+      if (aNum >= 0 && bNum >= 0) return aNum.compareTo(bNum);
+      return a.id.compareTo(b.id);
+    });
     return sessions;
   }
 

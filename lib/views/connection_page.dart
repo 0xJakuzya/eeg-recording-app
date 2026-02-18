@@ -27,6 +27,43 @@ class ConnectionPage extends StatelessWidget {
             ),
             actions: [
               Obx(() {
+                final state = controller.connectionState.value;
+                final color = switch (state) {
+                  BluetoothConnectionState.connected => AppTheme.statusConnected,
+                  BluetoothConnectionState.connecting => Colors.amber,
+                  BluetoothConnectionState.disconnecting => Colors.amber,
+                  BluetoothConnectionState.disconnected => AppTheme.textMuted,
+                };
+                return Tooltip(
+                  message: switch (state) {
+                    BluetoothConnectionState.connected => 'Подключено',
+                    BluetoothConnectionState.connecting => 'Подключение...',
+                    BluetoothConnectionState.disconnecting => 'Отключение...',
+                    BluetoothConnectionState.disconnected => 'Не подключено',
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.only(right: 8, left: 16),
+                    child: Container(
+                      width: 10,
+                      height: 10,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: color,
+                        boxShadow: state == BluetoothConnectionState.connected
+                            ? [
+                                BoxShadow(
+                                  color: color.withValues(alpha: 0.5),
+                                  blurRadius: 4,
+                                  spreadRadius: 1,
+                                ),
+                              ]
+                            : null,
+                      ),
+                    ),
+                  ),
+                );
+              }),
+              Obx(() {
                 final scanning = controller.isScanning.value;
                 return IconButton(
                   icon: scanning

@@ -16,9 +16,12 @@ class RecordingConstants {
   static const String recordingFileExtension = '.txt';
   static const String defaultRecordingBaseName = 'recording';
 
-  static const List<int> supportedSamplingRates = [50, 100, 250, 500, 1000];
-  /// Рекомендуется 100 Гц для совместимости с моделью анализа.
-  static const int defaultSamplingRateHz = 100;
+  /// Диапазон и значение по умолчанию частоты дискретизации (Гц).
+  static const int samplingRateMinHz = 100;
+  static const int samplingRateMaxHz = 500;
+  static const int samplingRateDefaultHz = 250;
+  /// Устаревшее: используйте настройку из SettingsController.
+  static const int samplingRateHz = samplingRateDefaultHz;
 
   /// ADC reference voltage for 24-bit format (volts). Formula: volts = raw * (Vref / 2^23)
   static const double adcVrefVolts = 1.2;

@@ -14,13 +14,12 @@ class SettingsController extends GetxController {
   static const String keyRotationIntervalMinutes = RecordingConstants.keyRotationIntervalMinutes;
   static const String keyLastSessionNumber = RecordingConstants.keyLastSessionNumber;
   static const String keySamplingRateHz = 'sampling_rate_hz';
-
   RxInt channelCount = RxInt(8); // default channels
+  RxInt samplingRateHz = RxInt(RecordingConstants.samplingRateDefaultHz);
   Rx<String?> recordingDirectory = Rx<String?>(null);
   RxInt rotationIntervalMinutes = RxInt(RecordingConstants.defaultRotationIntervalMinutes);
   RxInt lastSessionNumber = RxInt(0);
   Rx<DataFormat> dataFormat = DataFormat.uint12Le.obs;
-  RxInt samplingRateHz = RxInt(RecordingConstants.defaultSamplingRateHz);
 
   @override
   void onInit() {
@@ -28,8 +27,8 @@ class SettingsController extends GetxController {
     loadRecordingDirectory();
     loadDataFormat();
     loadRotationInterval();
-    loadLastSessionNumber();
     loadSamplingRate();
+    loadLastSessionNumber();
   }
 
   // load recording directory
@@ -103,22 +102,24 @@ class SettingsController extends GetxController {
     await prefs.setString(keyDataFormat, format.name);
   }
 
-  // load sampling rate
   Future<void> loadSamplingRate() async {
     final prefs = await SharedPreferences.getInstance();
     final value = prefs.getInt(keySamplingRateHz);
     if (value != null &&
-        RecordingConstants.supportedSamplingRates.contains(value)) {
+        value >= RecordingConstants.samplingRateMinHz &&
+        value <= RecordingConstants.samplingRateMaxHz) {
       samplingRateHz.value = value;
     }
   }
 
-  // set sampling rate
-  Future<void> setSamplingRateHz(int hz) async {
-    if (!RecordingConstants.supportedSamplingRates.contains(hz)) return;
-    samplingRateHz.value = hz;
+  Future<void> setSamplingRate(int hz) async {
+    final clamped = hz.clamp(
+      RecordingConstants.samplingRateMinHz,
+      RecordingConstants.samplingRateMaxHz,
+    );
+    samplingRateHz.value = clamped;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(keySamplingRateHz, hz);
+    await prefs.setInt(keySamplingRateHz, clamped);
   }
 
   BleController? get bleController =>
