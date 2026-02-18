@@ -1,6 +1,7 @@
 import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ble_app/core/ble_constants.dart';
+import 'package:ble_app/core/polysomnography_constants.dart';
 import 'package:ble_app/core/recording_constants.dart';
 import 'package:ble_app/controllers/ble_controller.dart';
 import 'package:ble_app/utils/extension.dart';
@@ -14,12 +15,14 @@ class SettingsController extends GetxController {
   static const String keyRotationIntervalMinutes = RecordingConstants.keyRotationIntervalMinutes;
   static const String keyLastSessionNumber = RecordingConstants.keyLastSessionNumber;
   static const String keySamplingRateHz = 'sampling_rate_hz';
+  static const String keyPolysomnographyBaseUrl = 'polysomnography_base_url';
   RxInt channelCount = RxInt(8); // default channels
   RxInt samplingRateHz = RxInt(RecordingConstants.samplingRateDefaultHz);
   Rx<String?> recordingDirectory = Rx<String?>(null);
   RxInt rotationIntervalMinutes = RxInt(RecordingConstants.defaultRotationIntervalMinutes);
   RxInt lastSessionNumber = RxInt(0);
   Rx<DataFormat> dataFormat = DataFormat.uint12Le.obs;
+  Rx<String?> polysomnographyBaseUrl = Rx<String?>(null);
 
   @override
   void onInit() {
@@ -29,6 +32,28 @@ class SettingsController extends GetxController {
     loadRotationInterval();
     loadSamplingRate();
     loadLastSessionNumber();
+    loadPolysomnographyBaseUrl();
+  }
+
+  String get effectivePolysomnographyBaseUrl =>
+      polysomnographyBaseUrl.value?.trim().isEmpty ?? true
+          ? PolysomnographyConstants.defaultBaseUrl
+          : polysomnographyBaseUrl.value!;
+
+  Future<void> loadPolysomnographyBaseUrl() async {
+    final prefs = await SharedPreferences.getInstance();
+    polysomnographyBaseUrl.value = prefs.getString(keyPolysomnographyBaseUrl);
+  }
+
+  Future<void> setPolysomnographyBaseUrl(String? url) async {
+    final trimmed = url?.trim();
+    polysomnographyBaseUrl.value = trimmed?.isEmpty ?? true ? null : trimmed;
+    final prefs = await SharedPreferences.getInstance();
+    if (polysomnographyBaseUrl.value != null) {
+      await prefs.setString(keyPolysomnographyBaseUrl, polysomnographyBaseUrl.value!);
+    } else {
+      await prefs.remove(keyPolysomnographyBaseUrl);
+    }
   }
 
   // load recording directory

@@ -5,6 +5,7 @@ import 'package:get/get.dart';
 import 'package:ble_app/controllers/ble_controller.dart';
 import 'package:ble_app/controllers/settings_controller.dart';
 import 'package:ble_app/core/app_theme.dart';
+import 'package:ble_app/core/polysomnography_constants.dart';
 import 'package:ble_app/utils/extension.dart';
 
 class SettingsPage extends StatelessWidget {
@@ -88,6 +89,25 @@ class SettingsPage extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 24),
+          _SectionHeader(title: 'Полисомнография'),
+          _SettingsCard(
+            children: [
+              _SettingsTile(
+                icon: Icons.cloud_outlined,
+                title: 'Адрес сервера',
+                subtitle: Obx(() {
+                  final url = settings.polysomnographyBaseUrl.value;
+                  return Text(
+                    url != null && url.isNotEmpty
+                        ? url
+                        : 'По умолчанию (${PolysomnographyConstants.defaultBaseUrl})',
+                  );
+                }),
+                onTap: () => _showPolysomnographyUrlDialog(context, settings),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
           _SectionHeader(title: 'О приложении'),
           _SettingsCard(
             children: [
@@ -139,6 +159,52 @@ class SettingsPage extends StatelessWidget {
           .toList(),
     );
     if (selected != null) await settings.setRotationIntervalMinutes(selected);
+  }
+
+  Future<void> _showPolysomnographyUrlDialog(
+      BuildContext context, SettingsController settings) async {
+    final controller = TextEditingController(
+      text: settings.polysomnographyBaseUrl.value ??
+          PolysomnographyConstants.defaultBaseUrl,
+    );
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Адрес сервера полисомнографии'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(
+            hintText: 'http://192.168.0.1:8000',
+            border: OutlineInputBorder(),
+          ),
+          keyboardType: TextInputType.url,
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Отмена'),
+          ),
+          TextButton(
+            onPressed: () async {
+              await settings.setPolysomnographyBaseUrl(null);
+              if (ctx.mounted) Navigator.pop(ctx);
+            },
+            child: const Text('Сбросить'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              await settings.setPolysomnographyBaseUrl(controller.text);
+              if (ctx.mounted) Navigator.pop(ctx);
+            },
+            child: const Text('Сохранить'),
+          ),
+        ],
+      ),
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      controller.dispose();
+    });
   }
 
   Future<void> _showDataFormatSheet(

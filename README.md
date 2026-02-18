@@ -22,8 +22,8 @@
 
 - **Запись ЭЭГ в реальном времени**
   - Потоковая запись в txt/csv с буферизацией и ротацией по времени
-  - Поддержка форматов: int8, uint12Le, int24Be (8 каналов)
-  - Фильтр Notch 50 Гц для данных, используемых в полисомнографии
+  - Поддержка форматов: int8, uint12Le, int24Be (8 каналов при получении, 1 канал при записи)
+  - Фильтр Notch 50 Гц (подавление сетевой частоты) для полисомнографии
   - Foreground service для записи при свёрнутом экране
 
 - **Онлайн‑визуализация сигналов**
@@ -37,13 +37,28 @@
 
 - **Интеграция с полисомнографией**
   - **FilesPage**: загрузка выбранных файлов на сервер (POST `/users/save_user_file`)
-  - **FilesProcessedPage**: загрузка всех файлов сессии → предикт (POST `/users/save_predict_json`)
+  - **FilesProcessedPage**: загрузка файлов сессии, автообработка предикта (POST `/users/save_predict_json`)
   - **SessionDetailsPage**: гипнограмма (GET `/users/sleep_graph?index=N`), интервалы стадий сна
 
 - **Настройки**
-  - Папка для записей, интервал ротации, формат данных (int8, uint12Le, int24Be), число каналов, а также настройка и отправка кастомных команд на устройство
+  - Папка для записей, интервал ротации, частота дискретизации (100/250/500 Гц), формат данных (int8, uint12Le, int24Be), число каналов, адрес сервера полисомнографии, а также кастомные команды на устройство
 
----
+## Требования для отправки в полисомнографию
+
+Для корректного анализа данных модели необходимо соблюдать следующие условия:
+
+### Одноканальные записи
+
+- **TXT‑файлы**: убедитесь, что данные содержат только **один канал**. Запись через приложение пишет одноканальные данные по умолчанию.
+
+### Параметры сигнала
+
+| Параметр | Значение |
+|----------|----------|
+| **Частота дискретизации** | 100 Гц |
+| **Фильтр подавления сетевой частоты** | 50 Гц (Notch‑фильтр) |
+
+Рекомендуется задать частоту 100 Гц в настройках перед записью для TXT‑файлов. Фильтр 50 Гц применяется к данным при записи.
 
 ## Архитектура данных
 
@@ -68,20 +83,18 @@ File: dd.MM.yyyy/session_N/session_N_dd.MM.yyyy_HH-mm.txt
 ### Интеграция с полисомнографией
 
 ```text
-txt/edf файлы сессии
+txt/edf файлы (одноканальные, 100 Гц, фильтр 50 Гц)
     ↓
-POST /users/save_user_file (patient_id=1, patient_name=1_session_N_i, 100 Гц)
+POST /users/save_user_file (patient_id, patient_name, sampling_frequency для .txt)
     ↓
-POST /users/save_predict_json (file_index=0) → { prediction, index }
+POST /users/save_predict_json (patient_id, file_index, channel для .edf)
     ↓
-ProcessedSession(prediction, jsonIndex)
+PredictResult(prediction, jsonIndex)
     ↓
 GET /users/sleep_graph?index=N → PNG гипнограмма
     ↓
 SessionDetailsPage: Image + chips с интервалами стадий
 ```
-
----
 
 ## Установка и запуск
 
@@ -98,9 +111,10 @@ SessionDetailsPage: Image + chips с интервалами стадий
    flutter run
    ```
 
-Для интеграции с полисомнографией укажите URL сервера в `lib/core/polysomnography_constants.dart` 
-
----
+Для интеграции с полисомнографией:
+- **URL сервера**: Настройки → Полисомнография → Адрес сервера. Укажите адрес API, например `http://192.168.0.174:8000`. При смене Wi‑Fi IP компьютера может измениться — узнайте его командой `ipconfig` (Windows) и обновите в настройках.
+- Дефолтный адрес задаётся в `lib/core/polysomnography_constants.dart`.
+- Перед записью TXT для анализа установите частоту дискретизации **100 Гц** в настройках (Bluetooth → Частота дискретизации) 
 
 ## Структура проекта
 
@@ -108,16 +122,18 @@ SessionDetailsPage: Image + chips с интервалами стадий
 lib/
 ├── main.dart
 ├── controllers/
-│   ├── ble_controller.dart         # BLE: сканирование, подключение
-│   ├── recording_controller.dart   # запись, парсинг, фильтр, CsvStreamWriter
-│   ├── settings_controller.dart    # настройки (SharedPreferences)
-│   └── files_controller.dart       # файлы, сессии
+│   ├── ble_controller.dart              # BLE: сканирование, подключение
+│   ├── recording_controller.dart        # запись, парсинг, фильтр, CsvStreamWriter
+│   ├── settings_controller.dart         # настройки (SharedPreferences)
+│   ├── files_controller.dart            # файлы, сессии
+│   ├── navigation_controller.dart       # навигация (BottomNavigationBar)
+│   └── polysomnography_controller.dart  # состояние полисомнографии (ID пациента, индекс гипнограммы)
 │
 ├── services/
 │   ├── csv_stream_service.dart     # потоковая запись txt с ротацией
 │   ├── eeg_parser_service.dart     # парсинг bytes → EegSample (int8/12/24)
 │   ├── eeg_foreground_service.dart # foreground task при записи
-│   └── polysomnography_service.dart # API полисомнографии: uploadTxtFile,
+│   └── polysomnography_service.dart # API: uploadPatientFile, getPatientFilesList, savePredictJson, fetchSleepGraphImage
 │
 ├── models/
 │   ├── eeg_models.dart             # EegSample, DataFormat
@@ -146,7 +162,9 @@ lib/
 ├── core/
 │   ├── ble_constants.dart
 │   ├── recording_constants.dart
-│   └── polysomnography_constants.dart
+│   ├── polysomnography_constants.dart
+│   ├── app_theme.dart
+│   └── app_keys.dart                    # GlobalKey для FilesPage, FilesProcessedPage
 │
 └── utils/
     ├── extension.dart             # DataFormat, DateTime.format, ...

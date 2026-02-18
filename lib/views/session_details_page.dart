@@ -1,10 +1,89 @@
 import 'dart:typed_data';
 
+ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:ble_app/core/app_theme.dart';
-import 'package:ble_app/core/polysomnography_constants.dart';
-import 'package:ble_app/models/processed_session_models.dart';
 import 'package:ble_app/services/polysomnography_service.dart';
+
+/// Вычисляет длительности стадий сна из prediction JSON.
+Map<String, double> computeStageDurations(Map<String, dynamic> prediction) {
+  final result = <String, double>{};
+  for (final entry in prediction.entries) {
+    double total = 0;
+    if (entry.value is List) {
+      for (final interval in entry.value as List) {
+        if (interval is List && interval.length >= 2) {
+          final start = (interval[0] is num ? interval[0] as num : num.tryParse(interval[0].toString()) ?? 0).toDouble();
+          final end = (interval[1] is num ? interval[1] as num : num.tryParse(interval[1].toString()) ?? 0).toDouble();
+          total += end - start;
+        }
+      }
+    }
+    result[entry.key] = total;
+  }
+  return result;
+}
+
+/// Круговая диаграмма распределения стадий сна.
+class SleepStagesPieChart extends StatelessWidget {
+  const SleepStagesPieChart({super.key, required this.prediction});
+
+  final Map<String, dynamic> prediction;
+
+  @override
+  Widget build(BuildContext context) {
+    final durations = computeStageDurations(prediction);
+    if (durations.isEmpty) {
+      return const Center(
+        child: Text(
+          'Нет данных для диаграммы',
+          style: TextStyle(color: AppTheme.textSecondary),
+        ),
+      );
+    }
+
+    final total = durations.values.fold(0.0, (a, b) => a + b);
+    if (total <= 0) {
+      return const Center(
+        child: Text(
+          'Нет данных для диаграммы',
+          style: TextStyle(color: AppTheme.textSecondary),
+        ),
+      );
+    }
+
+    final sections = durations.entries
+        .where((e) => e.value > 0)
+        .map((e) {
+          final pct = (e.value / total * 100).toStringAsFixed(1);
+          return PieChartSectionData(
+            value: e.value,
+            title: '${e.key}\n${pct}%',
+            color: AppTheme.getStageColor(e.key),
+            titleStyle: const TextStyle(
+              color: AppTheme.textPrimary,
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+            ),
+            radius: 80,
+            showTitle: true,
+          );
+        })
+        .toList();
+
+    return SizedBox(
+      height: 220,
+      child: PieChart(
+        PieChartData(
+          sections: sections,
+          sectionsSpace: 2,
+          centerSpaceRadius: 30,
+        ),
+        duration: const Duration(milliseconds: 300),
+      ),
+    );
+  }
+}
 
 /// Загружает гипнограмму через PolysomnographyApiService.
 class HypnogramImage extends StatefulWidget {
@@ -12,10 +91,14 @@ class HypnogramImage extends StatefulWidget {
     super.key,
     required this.service,
     required this.index,
+    this.startFrom,
+    this.endTo,
   });
 
   final PolysomnographyApiService service;
   final int index;
+  final int? startFrom;
+  final int? endTo;
 
   @override
   State<HypnogramImage> createState() => HypnogramImageState();
@@ -27,7 +110,11 @@ class HypnogramImageState extends State<HypnogramImage> {
   @override
   void initState() {
     super.initState();
-    imageLoadFuture = widget.service.fetchSleepGraphImage(widget.index);
+    imageLoadFuture = widget.service.fetchSleepGraphImage(
+      widget.index,
+      startFrom: widget.startFrom,
+      endTo: widget.endTo,
+    );
   }
 
   @override
@@ -92,8 +179,9 @@ class HypnogramErrorContent extends StatelessWidget {
 }
 
 class _HypnogramCard extends StatelessWidget {
-  const _HypnogramCard({required this.child});
+  const _HypnogramCard({required this.title, required this.child});
 
+  final String title;
   final Widget child;
 
   @override
@@ -109,9 +197,9 @@ class _HypnogramCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Гипнограмма',
-            style: TextStyle(
+          Text(
+            title,
+            style: const TextStyle(
               color: AppTheme.textPrimary,
               fontWeight: FontWeight.w600,
               fontSize: 16,
@@ -119,7 +207,7 @@ class _HypnogramCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           SizedBox(
-            height: MediaQuery.of(context).size.height * 0.5,
+            height: MediaQuery.of(context).size.height * 0.4,
             child: child,
           ),
         ],
@@ -131,66 +219,113 @@ class _HypnogramCard extends StatelessWidget {
 class SessionDetailsPage extends StatelessWidget {
   const SessionDetailsPage({
     super.key,
-    required this.session,
+    required this.fileName,
+    required this.prediction,
+    required this.jsonIndex,
+    required this.service,
+    this.patientId,
+    this.fileIndex,
   });
 
-  final ProcessedSession session;
-
-  static final PolysomnographyApiService polysomnographyService =
-      PolysomnographyApiService(
-    baseUrl: PolysomnographyConstants.defaultBaseUrl,
-  );
+  final String fileName;
+  final Map<String, dynamic>? prediction;
+  final int jsonIndex;
+  final PolysomnographyApiService service;
+  final int? patientId;
+  final int? fileIndex;
 
   @override
   Widget build(BuildContext context) {
-    final prediction = session.prediction;
+    final pred = prediction;
 
-    // sleep_graph: GET /users/sleep_graph?index=N (0-based)
-    int? sleepGraphIndex;
-    if (session.jsonIndex != null) {
-      sleepGraphIndex = (session.jsonIndex! - 1).clamp(0, 999999);
-    }
+    final hypnogramWidget = HypnogramImage(
+      service: service,
+      index: jsonIndex,
+    );
 
-    final hypnogramWidget = sleepGraphIndex != null
-        ? HypnogramImage(
-            service: polysomnographyService,
-            index: sleepGraphIndex,
-          )
-        : null;
+    final verificationCard = Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppTheme.backgroundSurface.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppTheme.borderSubtle),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Данные для проверки соответствия',
+            style: TextStyle(
+              color: AppTheme.textSecondary,
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text('Файл: $fileName', style: const TextStyle(color: AppTheme.textPrimary, fontSize: 14)),
+          if (patientId != null) Text('Пациент ID: $patientId', style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13)),
+          if (fileIndex != null) Text('Индекс файла: $fileIndex', style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13)),
+          Text('Индекс sleep_graph: $jsonIndex (глобальный счётчик)', style: const TextStyle(color: AppTheme.accentSecondary, fontSize: 13)),
+        ],
+      ),
+    );
 
-    if (prediction == null || prediction.isEmpty) {
+    if (pred == null || pred.isEmpty) {
       return Scaffold(
         appBar: AppBar(
-          title: Text('Сессия ${session.id}'),
+          title: Text(fileName),
         ),
         body: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            if (hypnogramWidget != null)
-              _HypnogramCard(child: hypnogramWidget)
-            else
-              Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Text(
-                    'Данных предикта для этой сессии пока нет',
-                    style: const TextStyle(color: AppTheme.textSecondary),
-                  ),
+            verificationCard,
+            _HypnogramCard(title: 'Гипнограмма', child: hypnogramWidget),
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.all(24),
+                child: Text(
+                  'Данных предикта для этого файла пока нет',
+                  style: TextStyle(color: AppTheme.textSecondary),
                 ),
               ),
+            ),
           ],
         ),
       );
     }
 
-    final List<Widget> children = <Widget>[];
-
-    if (hypnogramWidget != null) {
-      children.add(_HypnogramCard(child: hypnogramWidget));
-    }
+    final List<Widget> children = <Widget>[
+      verificationCard,
+      _HypnogramCard(title: 'Гипнограмма (индекс: $jsonIndex)', child: hypnogramWidget),
+      Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: AppTheme.backgroundSurface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppTheme.borderSubtle),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Распределение стадий сна',
+              style: TextStyle(
+                color: AppTheme.textPrimary,
+                fontWeight: FontWeight.w600,
+                fontSize: 16,
+              ),
+            ),
+            const SizedBox(height: 12),
+            SleepStagesPieChart(prediction: pred),
+          ],
+        ),
+      ),
+    ];
 
     children.addAll(
-      prediction.entries.map((entry) {
+      pred.entries.map((entry) {
         final stage = entry.key;
         final intervals = entry.value;
         final stageColor = AppTheme.getStageColor(stage);
@@ -206,7 +341,7 @@ class SessionDetailsPage extends StatelessWidget {
                   label: Text('$start–$end с'),
                   backgroundColor: stageColor.withValues(alpha: 0.2),
                   side: BorderSide(color: stageColor.withValues(alpha: 0.5)),
-                  labelStyle: TextStyle(color: AppTheme.textPrimary),
+                  labelStyle: const TextStyle(color: AppTheme.textPrimary),
                 ),
               );
             }
@@ -256,7 +391,7 @@ class SessionDetailsPage extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('Сессия ${session.id}'),
+        title: Text(fileName),
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
