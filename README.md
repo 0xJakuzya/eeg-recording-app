@@ -37,7 +37,7 @@
 
 - **Интеграция с полисомнографией**
   - **FilesPage**: загрузка выбранных файлов на сервер (POST `/users/save_user_file`)
-  - **FilesProcessedPage**: загрузка файлов сессии, автообработка предикта (POST `/users/save_predict_json`)
+  - **ProcessedFilesPage**: загрузка файлов сессии, автообработка предикта (POST `/users/save_predict_json`)
   - **SessionDetailsPage**: гипнограмма (GET `/users/sleep_graph?index=N`), интервалы стадий сна
 
 - **Настройки**
@@ -113,7 +113,7 @@ SessionDetailsPage: Image + chips с интервалами стадий
 
 Для интеграции с полисомнографией:
 - **URL сервера**: Настройки → Полисомнография → Адрес сервера. Укажите адрес API, например `http://192.168.0.174:8000`. При смене Wi‑Fi IP компьютера может измениться — узнайте его командой `ipconfig` (Windows) и обновите в настройках.
-- Дефолтный адрес задаётся в `lib/core/polysomnography_constants.dart`.
+- Дефолтный адрес задаётся в `lib/core/constants/polysomnography_constants.dart`.
 - Перед записью TXT для анализа установите частоту дискретизации **100 Гц** в настройках (Bluetooth → Частота дискретизации) 
 
 ## Структура проекта
@@ -121,52 +121,58 @@ SessionDetailsPage: Image + chips с интервалами стадий
 ```text
 lib/
 ├── main.dart
-├── controllers/
-│   ├── ble_controller.dart              # BLE: сканирование, подключение
-│   ├── recording_controller.dart        # запись, парсинг, фильтр, CsvStreamWriter
-│   ├── settings_controller.dart         # настройки (SharedPreferences)
-│   ├── files_controller.dart            # файлы, сессии
-│   ├── navigation_controller.dart       # навигация (BottomNavigationBar)
-│   └── polysomnography_controller.dart  # состояние полисомнографии (ID пациента, индекс гипнограммы)
-│
-├── services/
-│   ├── csv_stream_service.dart     # потоковая запись txt с ротацией
-│   ├── eeg_parser_service.dart     # парсинг bytes → EegSample (int8/12/24)
-│   ├── eeg_foreground_service.dart # foreground task при записи
-│   └── polysomnography_service.dart # API: uploadPatientFile, getPatientFilesList, savePredictJson, fetchSleepGraphImage
-│
-├── models/
-│   ├── eeg_models.dart             # EegSample, DataFormat
-│   ├── recording_models.dart       # RecordingFileInfo, CsvRecordingMetadata
-│   └── processed_session_models.dart# ProcessedSession, PredictionStatus
-│
-├── views/
-│   ├── main_navigation.dart       # BottomNavigationBar, IndexedStack
-│   ├── connection_page.dart       # сканирование, список устройств
-│   ├── device_details_page.dart   # характеристики, команды
-│   ├── recording_page.dart        # график, управление записью
-│   ├── files_page.dart            # файлы, загрузка в полисомнографию
-│   ├── files_processed_page.dart  # сессии, предикт, переход к деталям
-│   ├── session_details_page.dart  # гипнограмма, интервалы стадий
-│   ├── csv_view_page.dart         # просмотр txt/csv
-│   └── settings_page.dart         # настройки
-│
-├── widgets/
-│   ├── device_list.dart
-│   ├── characteristic_list.dart
-│   ├── device_control_section.dart
-│   ├── eeg_plots.dart
-│   ├── recording_status_card.dart
-│   └── files_selection_bar.dart
-│
 ├── core/
-│   ├── ble_constants.dart
-│   ├── recording_constants.dart
-│   ├── polysomnography_constants.dart
-│   ├── app_theme.dart
-│   └── app_keys.dart                    # GlobalKey для FilesPage, FilesProcessedPage
+│   ├── constants/
+│   │   ├── ble_constants.dart
+│   │   ├── recording_constants.dart
+│   │   └── polysomnography_constants.dart
+│   ├── theme/
+│   │   └── app_theme.dart
+│   ├── utils/
+│   │   ├── format_extensions.dart   # DataFormat, DateTime.format, ...
+│   │   └── signal_filters.dart     # Notch50HzFilter
+│   └── common/
+│       ├── eeg_sample.dart
+│       └── recording_models.dart
 │
-└── utils/
-    ├── extension.dart             # DataFormat, DateTime.format, ...
-    └── signal_filters.dart         # Notch50HzFilter
+└── features/
+    ├── ble/
+    │   ├── ble_controller.dart
+    │   ├── connection_page.dart
+    │   ├── device_details_page.dart
+    │   └── widgets/
+    │       ├── device_list.dart
+    │       └── characteristic_list.dart
+    │
+    ├── recording/
+    │   ├── recording_controller.dart
+    │   ├── recording_page.dart
+    │   ├── csv_stream_service.dart
+    │   ├── eeg_parser_service.dart
+    │   ├── eeg_foreground_service.dart
+    │   └── widgets/
+    │       ├── eeg_plots.dart
+    │       └── recording_status_card.dart
+    │
+    ├── files/
+    │   ├── files_controller.dart
+    │   ├── files_page.dart
+    │   ├── csv_view_page.dart
+    │   └── widgets/
+    │       └── files_selection_bar.dart
+    │
+    ├── polysomnography/
+    │   ├── polysomnography_controller.dart
+    │   ├── polysomnography_service.dart
+    │   ├── processed_files_page.dart
+    │   ├── session_details_page.dart
+    │   └── processed_session.dart
+    │
+    ├── settings/
+    │   ├── settings_controller.dart
+    │   └── settings_page.dart
+    │
+    └── navigation/
+        ├── navigation_controller.dart
+        └── main_navigation.dart
 ```
