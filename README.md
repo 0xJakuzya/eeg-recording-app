@@ -60,42 +60,6 @@
 
 Рекомендуется задать частоту 100 Гц в настройках перед записью для TXT‑файлов. Фильтр 50 Гц применяется к данным при записи.
 
-## Архитектура данных
-
-### Запись ЭЭГ
-
-```text
-BLE Device (notify)
-    ↓
-BleController.selectedDataCharacteristic.lastValueStream
-    ↓
-RecordingController.onDataReceived(bytes)
-    ↓
-EegParserService.parseAllBytes() → List<EegSample> (int8/uint12Le/int24Be)
-    ↓
-Notch50HzFilter.process() — подавление 50 Гц
-    ↓
-CsvStreamWriter.writeSample() → buffer → flush при 100 строках
-    ↓
-File: dd.MM.yyyy/session_N/session_N_dd.MM.yyyy_HH-mm.txt
-```
-
-### Интеграция с полисомнографией
-
-```text
-txt/edf файлы (одноканальные, 100 Гц, фильтр 50 Гц)
-    ↓
-POST /users/save_user_file (patient_id, patient_name, sampling_frequency для .txt)
-    ↓
-POST /users/save_predict_json (patient_id, file_index, channel для .edf)
-    ↓
-PredictResult(prediction, jsonIndex)
-    ↓
-GET /users/sleep_graph?index=N → PNG гипнограмма
-    ↓
-SessionDetailsPage: Image + chips с интервалами стадий
-```
-
 ## Установка и запуск
 
 1. Установите Flutter SDK (рекомендуется 3.10+)
