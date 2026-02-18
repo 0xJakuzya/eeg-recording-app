@@ -68,10 +68,12 @@
             android:name="flutterEmbedding"
             android:value="2" />
         <!-- Foreground service for EEG recording (flutter_foreground_task) -->
+        <!-- stopWithTask: stop service when app is removed from recents (swipe/crash) -->
         <service
             android:name="com.pravera.flutter_foreground_task.service.ForegroundService"
             android:foregroundServiceType="connectedDevice"
-            android:exported="false" />
+            android:exported="false"
+            android:stopWithTask="true" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:ble_app/controllers/ble_controller.dart';
+import 'package:ble_app/core/app_theme.dart';
 import 'package:ble_app/views/device_details_page.dart';
 import 'package:ble_app/widgets/device_list.dart';
 
@@ -25,22 +26,58 @@ class ConnectionPage extends StatelessWidget {
                   ),
             ),
             actions: [
-              // scan button with loading indicator
+              Obx(() {
+                final state = controller.connectionState.value;
+                final color = switch (state) {
+                  BluetoothConnectionState.connected => AppTheme.statusConnected,
+                  BluetoothConnectionState.connecting => Colors.amber,
+                  BluetoothConnectionState.disconnecting => Colors.amber,
+                  BluetoothConnectionState.disconnected => AppTheme.textMuted,
+                };
+                return Tooltip(
+                  message: switch (state) {
+                    BluetoothConnectionState.connected => 'Подключено',
+                    BluetoothConnectionState.connecting => 'Подключение...',
+                    BluetoothConnectionState.disconnecting => 'Отключение...',
+                    BluetoothConnectionState.disconnected => 'Не подключено',
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.only(right: 8, left: 16),
+                    child: Container(
+                      width: 10,
+                      height: 10,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: color,
+                        boxShadow: state == BluetoothConnectionState.connected
+                            ? [
+                                BoxShadow(
+                                  color: color.withValues(alpha: 0.5),
+                                  blurRadius: 4,
+                                  spreadRadius: 1,
+                                ),
+                              ]
+                            : null,
+                      ),
+                    ),
+                  ),
+                );
+              }),
               Obx(() {
                 final scanning = controller.isScanning.value;
                 return IconButton(
                   icon: scanning
                       ? SizedBox(
-                          width: 20,
-                          height: 20,
+                          width: 22,
+                          height: 22,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
                             valueColor: AlwaysStoppedAnimation<Color>(
-                              Theme.of(context).colorScheme.primary,
+                              AppTheme.statusConnected,
                             ),
                           ),
                         )
-                      : const Icon(Icons.refresh),
+                      : Icon(Icons.refresh, color: AppTheme.textPrimary),
                   onPressed: scanning ? null : () => controller.scanDevices(),
                   tooltip: 'Обновить устройства',
                 );
@@ -56,24 +93,54 @@ class ConnectionPage extends StatelessWidget {
                 if (device == null) return const SizedBox.shrink();
                 return Column(
                   children: [
-                    const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 16),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
                       child: Align(
                         alignment: Alignment.centerLeft,
                         child: Text(
                           'Подключенное устройство',
-                          style: TextStyle(fontWeight: FontWeight.w600),
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: AppTheme.textPrimary,
+                          ),
                         ),
                       ),
                     ),
                     const SizedBox(height: 8),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 8),
-                      child: Card(
-                        elevation: 2,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: AppTheme.backgroundSurface,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: AppTheme.statusConnected.withValues(alpha: 0.5),
+                            width: 1.5,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppTheme.statusConnected.withValues(alpha: 0.12),
+                              blurRadius: 8,
+                              spreadRadius: 0,
+                            ),
+                          ],
+                        ),
                         child: ListTile(
-                          title: Text(DeviceListTile.displayName(device)),
-                          subtitle: Text(device.remoteId.str),
+                          leading: Icon(
+                            Icons.bluetooth_connected,
+                            color: AppTheme.statusConnected,
+                          ),
+                          title: Text(
+                            DeviceListTile.displayName(device),
+                            style: TextStyle(
+                              color: AppTheme.textPrimary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          subtitle: Text(
+                            device.remoteId.str,
+                            style: TextStyle(color: AppTheme.textSecondary),
+                          ),
                           onTap: () => Get.to(
                             () => DeviceDetailsPage(device: device),
                           ),
@@ -81,7 +148,7 @@ class ConnectionPage extends StatelessWidget {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               IconButton(
-                                icon: const Icon(Icons.info_outline),
+                                icon: Icon(Icons.info_outline, color: AppTheme.textSecondary),
                                 tooltip: 'Характеристики устройства',
                                 onPressed: () => Get.to(
                                   () => DeviceDetailsPage(device: device),
@@ -90,8 +157,8 @@ class ConnectionPage extends StatelessWidget {
                               const SizedBox(width: 8),
                               FilledButton.icon(
                                 style: FilledButton.styleFrom(
-                                  backgroundColor: const Color.fromARGB(255, 214, 99, 91),
-                                  foregroundColor: Colors.white,
+                                  backgroundColor: AppTheme.statusFailed,
+                                  foregroundColor: AppTheme.textPrimary,
                                 ),
                                 onPressed: () => controller.disconnect(),
                                 icon: const Icon(Icons.link_off),
@@ -106,14 +173,16 @@ class ConnectionPage extends StatelessWidget {
                   ],
                 );
               }),
-              // devices list header
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 16),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Align(
                   alignment: Alignment.centerLeft,
                   child: Text(
                     'Список устройств',
-                    style: TextStyle(fontWeight: FontWeight.w600),
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.textPrimary,
+                    ),
                   ),
                 ),
               ),
@@ -133,8 +202,11 @@ class ConnectionPage extends StatelessWidget {
                                 result.device.remoteId.str != connectedId)
                             .toList();
                         if (devices.isEmpty) {
-                          return const Center(
-                            child: Text('Устройства не найдены'),
+                          return Center(
+                            child: Text(
+                              'Устройства не найдены',
+                              style: TextStyle(color: AppTheme.textSecondary),
+                            ),
                           );
                         }
                         return ListView.builder(
@@ -167,9 +239,11 @@ class ConnectionPage extends StatelessWidget {
                           },
                         );
                       } else {
-                        // no scan data 
-                        return const Center(
-                          child: Text('Нажмите кнопку для поиска устройств'),
+                        return Center(
+                          child: Text(
+                            'Нажмите кнопку для поиска устройств',
+                            style: TextStyle(color: AppTheme.textSecondary),
+                          ),
                         );
                       }
                     },

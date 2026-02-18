@@ -1,6 +1,7 @@
 import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ble_app/core/ble_constants.dart';
+import 'package:ble_app/core/polysomnography_constants.dart';
 import 'package:ble_app/core/recording_constants.dart';
 import 'package:ble_app/controllers/ble_controller.dart';
 import 'package:ble_app/utils/extension.dart';
@@ -14,13 +15,14 @@ class SettingsController extends GetxController {
   static const String keyRotationIntervalMinutes = RecordingConstants.keyRotationIntervalMinutes;
   static const String keyLastSessionNumber = RecordingConstants.keyLastSessionNumber;
   static const String keySamplingRateHz = 'sampling_rate_hz';
-
+  static const String keyPolysomnographyBaseUrl = 'polysomnography_base_url';
   RxInt channelCount = RxInt(8); // default channels
+  RxInt samplingRateHz = RxInt(RecordingConstants.samplingRateDefaultHz);
   Rx<String?> recordingDirectory = Rx<String?>(null);
   RxInt rotationIntervalMinutes = RxInt(RecordingConstants.defaultRotationIntervalMinutes);
   RxInt lastSessionNumber = RxInt(0);
   Rx<DataFormat> dataFormat = DataFormat.uint12Le.obs;
-  RxInt samplingRateHz = RxInt(RecordingConstants.defaultSamplingRateHz);
+  Rx<String?> polysomnographyBaseUrl = Rx<String?>(null);
 
   @override
   void onInit() {
@@ -28,8 +30,30 @@ class SettingsController extends GetxController {
     loadRecordingDirectory();
     loadDataFormat();
     loadRotationInterval();
-    loadLastSessionNumber();
     loadSamplingRate();
+    loadLastSessionNumber();
+    loadPolysomnographyBaseUrl();
+  }
+
+  String get effectivePolysomnographyBaseUrl =>
+      polysomnographyBaseUrl.value?.trim().isEmpty ?? true
+          ? PolysomnographyConstants.defaultBaseUrl
+          : polysomnographyBaseUrl.value!;
+
+  Future<void> loadPolysomnographyBaseUrl() async {
+    final prefs = await SharedPreferences.getInstance();
+    polysomnographyBaseUrl.value = prefs.getString(keyPolysomnographyBaseUrl);
+  }
+
+  Future<void> setPolysomnographyBaseUrl(String? url) async {
+    final trimmed = url?.trim();
+    polysomnographyBaseUrl.value = trimmed?.isEmpty ?? true ? null : trimmed;
+    final prefs = await SharedPreferences.getInstance();
+    if (polysomnographyBaseUrl.value != null) {
+      await prefs.setString(keyPolysomnographyBaseUrl, polysomnographyBaseUrl.value!);
+    } else {
+      await prefs.remove(keyPolysomnographyBaseUrl);
+    }
   }
 
   // load recording directory
@@ -103,45 +127,49 @@ class SettingsController extends GetxController {
     await prefs.setString(keyDataFormat, format.name);
   }
 
-  // load sampling rate
   Future<void> loadSamplingRate() async {
     final prefs = await SharedPreferences.getInstance();
     final value = prefs.getInt(keySamplingRateHz);
     if (value != null &&
-        RecordingConstants.supportedSamplingRates.contains(value)) {
+        value >= RecordingConstants.samplingRateMinHz &&
+        value <= RecordingConstants.samplingRateMaxHz) {
       samplingRateHz.value = value;
     }
   }
 
-  // set sampling rate
-  Future<void> setSamplingRateHz(int hz) async {
-    if (!RecordingConstants.supportedSamplingRates.contains(hz)) return;
-    samplingRateHz.value = hz;
+  Future<void> setSamplingRate(int hz) async {
+    final clamped = hz.clamp(
+      RecordingConstants.samplingRateMinHz,
+      RecordingConstants.samplingRateMaxHz,
+    );
+    samplingRateHz.value = clamped;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(keySamplingRateHz, hz);
+    await prefs.setInt(keySamplingRateHz, clamped);
   }
 
-  /// Sends sampling rate to connected BLE device. Returns true on success.
+  BleController? get bleController =>
+      Get.isRegistered<BleController>() ? Get.find<BleController>() : null;
+
   Future<bool> applySamplingRateToDevice() async {
-    final ble = Get.isRegistered<BleController>() ? Get.find<BleController>() : null;
+    final ble = bleController;
     if (ble == null) return false;
     return ble.sendCommand(BleConstants.cmdSetSamplingRate(samplingRateHz.value));
   }
 
   Future<bool> sendPing() async {
-    final ble = Get.isRegistered<BleController>() ? Get.find<BleController>() : null;
+    final ble = bleController;
     if (ble == null) return false;
     return ble.sendCommand(BleConstants.cmdPing);
   }
 
   Future<bool> sendStartTransmission() async {
-    final ble = Get.isRegistered<BleController>() ? Get.find<BleController>() : null;
+    final ble = bleController;
     if (ble == null) return false;
     return ble.sendCommand(BleConstants.cmdStartTransmission);
   }
 
   Future<bool> sendStopTransmission() async {
-    final ble = Get.isRegistered<BleController>() ? Get.find<BleController>() : null;
+    final ble = bleController;
     if (ble == null) return false;
     return ble.sendCommand(BleConstants.cmdStopTransmission);
   }

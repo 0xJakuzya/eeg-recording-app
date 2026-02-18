@@ -80,7 +80,7 @@ class CsvStreamWriter {
     }
     final datePart = startedAt.format('dd.MM.yyyy');
     final timePart = startedAt.format('HH-mm');
-    return '${base}_${datePart}_${timePart}$ext';
+    return '${base}_${datePart}_$timePart$ext';
   }
 
   // write a sample to the buffer
@@ -115,20 +115,26 @@ class CsvStreamWriter {
     buffer.clear();
   }
 
-  /// Stops recording, writes metadata footer. Use durationSeconds from RecordingController.
+  /// Stops recording, writes metadata at top of file. Use durationSeconds from RecordingController.
   Future<void> stopRecording({
     double? durationSeconds,
   }) async {
     flushBuffer();
-    if (sink != null && durationSeconds != null && durationSeconds > 0) {
-      final effHz = sampleCounter / durationSeconds;
-      sink!.writeln(
-          '# duration_seconds=${durationSeconds.toStringAsFixed(1)};sample_count=$sampleCounter;effective_hz=${effHz.toStringAsFixed(0)}');
-    }
     await sink?.flush();
     await sink?.close();
     sink = null;
+    final path = currentFilePath;
     file = null;
+    if (path != null && durationSeconds != null && durationSeconds > 0) {
+      final effHz = sampleCounter / durationSeconds;
+      final metaLine =
+          '# duration_seconds=${durationSeconds.toStringAsFixed(1)};sample_count=$sampleCounter;effective_hz=${effHz.toStringAsFixed(0)}';
+      final f = File(path);
+      if (await f.exists()) {
+        final content = await f.readAsString();
+        await f.writeAsString('$metaLine\n$content');
+      }
+    }
   }
 
   void checkRotation() {

@@ -44,7 +44,7 @@ class CsvRecordingMetadata {
           return null;
         }
       }
-    } catch (_) {}
+    } catch (ignored) {}
     return null;
   }
 }

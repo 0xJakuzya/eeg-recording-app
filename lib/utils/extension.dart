@@ -13,11 +13,11 @@ extension DurationExtension on Duration {
     final minutes = inMinutes.remainder(60);
     final seconds = inSeconds.remainder(60);
     if (hours > 0) {
-      return '${hours}ч ${minutes}м ${seconds}с';
+      return '$hoursч $minutesм $secondsс';
     } else if (minutes > 0) {
-      return '${minutes}м ${seconds}с';
+      return '$minutesм $secondsс';
     } else {
-      return '${seconds}с';
+      return '$secondsс';
     }
   }
 }

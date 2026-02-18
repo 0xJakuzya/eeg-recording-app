@@ -1,10 +1,16 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:ble_app/controllers/files_controller.dart';
+import 'package:ble_app/controllers/navigation_controller.dart';
+import 'package:ble_app/controllers/settings_controller.dart';
+import 'package:ble_app/controllers/polysomnography_controller.dart';
+import 'package:ble_app/core/app_theme.dart';
 import 'package:ble_app/core/polysomnography_constants.dart';
 import 'package:ble_app/models/recording_models.dart';
 import 'package:ble_app/services/polysomnography_service.dart';
+import 'package:ble_app/core/app_keys.dart';
 import 'package:ble_app/views/csv_view_page.dart';
 import 'package:ble_app/widgets/files_selection_bar.dart';
 
@@ -25,10 +31,11 @@ class FilesPageState extends State<FilesPage> {
   bool selectionMode = false;
   Directory? currentDirectory;
   final List<Directory> directoryStack = <Directory>[];
-  final PolysomnographyApiService polysomnographyService =
+  PolysomnographyApiService get polysomnographyService =>
       PolysomnographyApiService(
-    baseUrl: PolysomnographyConstants.defaultBaseUrl,
-  );
+        baseUrlGetter: () =>
+            Get.find<SettingsController>().effectivePolysomnographyBaseUrl,
+      );
 
   @override
   void initState() {
@@ -70,14 +77,14 @@ class FilesPageState extends State<FilesPage> {
                 onPressed: () => Navigator.of(context).pop(false),
                 child: const Text('Отмена'),
               ),
-              FilledButton(
-                onPressed: () => Navigator.of(context).pop(true),
-                style: FilledButton.styleFrom(
-                  backgroundColor: Colors.red,
-                  foregroundColor: Colors.white,
-                ),
-                child: const Text('Удалить'),
-              ),
+                              FilledButton(
+                                onPressed: () => Navigator.of(context).pop(true),
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: AppTheme.statusFailed,
+                                  foregroundColor: AppTheme.textPrimary,
+                                ),
+                                child: const Text('Удалить'),
+                              ),
             ],
           ),
         ) ??
@@ -133,16 +140,25 @@ class FilesPageState extends State<FilesPage> {
               allSelected: allSelected,
               hasSelectedFiles: hasSelectedFiles,
               onToggleSelectAll: handleToggleSelectAll,
-              onUploadSelected: () async {
+              onShareSelected: () async {
                 final selectedFileInfos = currentFiles
                     .where((f) => selectedPaths.contains(f.file.path))
                     .toList();
                 if (selectedFileInfos.isEmpty) return;
-                await showPolysomnographyUploadDialog(
-                  context,
-                  selectedFileInfos,
-                );
+                await FilesPage.filesController.shareFiles(selectedFileInfos);
               },
+              onUploadSelected: _hasSelectedSessionFolders() || _isAtDateLevel()
+                  ? null
+                  : () async {
+                      final selectedFileInfos = currentFiles
+                          .where((f) => selectedPaths.contains(f.file.path))
+                          .toList();
+                      if (selectedFileInfos.isEmpty) return;
+                      await showPolysomnographyUploadDialog(
+                        context,
+                        selectedFileInfos,
+                      );
+                    },
               onDeleteSelected: () async {
                 final toDeleteFiles = currentFiles
                     .where((f) => selectedPaths.contains(f.file.path))
@@ -170,8 +186,8 @@ class FilesPageState extends State<FilesPage> {
                             onPressed: () =>
                                 Navigator.of(context).pop(true),
                             style: FilledButton.styleFrom(
-                              backgroundColor: Colors.red,
-                              foregroundColor: Colors.white,
+                              backgroundColor: AppTheme.statusFailed,
+                              foregroundColor: AppTheme.textPrimary,
                             ),
                             child: const Text('Удалить'),
                           ),
@@ -257,18 +273,27 @@ class FilesPageState extends State<FilesPage> {
                               ? segments.last
                               : dir.path;
 
-                      return Card(
+                      return Container(
                         margin: const EdgeInsets.symmetric(
                             horizontal: 16, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: AppTheme.backgroundSurface,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: AppTheme.borderSubtle),
+                        ),
                         child: ListTile(
                           leading: Icon(
                             isSelected ? Icons.check_circle : Icons.folder,
-                            color: Theme.of(context).colorScheme.primary,
+                            color: isSelected
+                                ? AppTheme.accentSecondary
+                                : AppTheme.accentPrimary,
                           ),
-                          title: Text(name),
-                          subtitle:
-                              const Text('Нажмите, чтобы открыть папку'),
-                          trailing: const Icon(Icons.chevron_right),
+                          title: Text(name, style: const TextStyle(color: AppTheme.textPrimary)),
+                          subtitle: const Text(
+                            'Нажмите, чтобы открыть папку',
+                            style: TextStyle(color: AppTheme.textSecondary),
+                          ),
+                          trailing: const Icon(Icons.chevron_right, color: AppTheme.textSecondary),
                           onTap: () {
                             if (selectionMode) {
                               setState(() {
@@ -319,32 +344,52 @@ class FilesPageState extends State<FilesPage> {
                     final path = info.file.path;
                     final isSelected =
                         selectionMode && selectedPaths.contains(path);
-                    return Card(
+                    return Container(
                       margin: const EdgeInsets.symmetric(
                           horizontal: 16, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: AppTheme.backgroundSurface,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: AppTheme.borderSubtle),
+                      ),
                       child: ListTile(
                         leading: Icon(
                           isSelected
                               ? Icons.check_circle
                               : Icons.insert_drive_file,
-                          color:
-                              Theme.of(context).colorScheme.primary,
+                          color: isSelected
+                              ? AppTheme.accentSecondary
+                              : AppTheme.accentPrimary,
                         ),
-                        title: Text(info.name),
+                        title: Text(info.name, style: const TextStyle(color: AppTheme.textPrimary)),
                         subtitle: Text(
                           'Дата: ${info.formattedModified}   •   Размер: ${info.formattedSize}',
+                          style: const TextStyle(color: AppTheme.textSecondary),
                         ),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            IconButton(
-                              icon: const Icon(Icons.share),
-                              onPressed: () => FilesPage
-                                  .filesController
-                                  .shareFile(info),
-                            ),
-                          ],
-                        ),
+                        trailing: selectionMode
+                            ? null
+                            : Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(
+                                    icon: const Icon(Icons.cloud_upload, color: AppTheme.textSecondary),
+                                    tooltip: 'Отправить в полисомнографию',
+                                    onPressed: () => showPolysomnographyUploadDialog(context, [info]),
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.share, color: AppTheme.textSecondary),
+                                    tooltip: 'Поделиться',
+                                    onPressed: () => FilesPage
+                                        .filesController
+                                        .shareFile(info),
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.delete_outline, color: AppTheme.textSecondary),
+                                    tooltip: 'Удалить',
+                                    onPressed: () => confirmAndDeleteSingle(context, info),
+                                  ),
+                                ],
+                              ),
                         onTap: () {
                           if (selectionMode) {
                             setState(() {
@@ -406,6 +451,20 @@ class FilesPageState extends State<FilesPage> {
     return currentFiles.any((f) => selectedPaths.contains(f.file.path));
   }
 
+  bool _hasSelectedSessionFolders() {
+    return currentDirectories.any((d) {
+      if (!selectedPaths.contains(d.path)) return false;
+      final name = d.path.split(Platform.pathSeparator).last;
+      return RegExp(r'^session_\d+$').hasMatch(name);
+    });
+  }
+
+  bool _isAtDateLevel() {
+    if (currentDirectory == null) return false;
+    final name = currentDirectory!.path.split(Platform.pathSeparator).last;
+    return RegExp(r'^\d{2}\.\d{2}\.\d{4}$').hasMatch(name);
+  }
+
   void handleToggleSelectAll() {
     final totalItems = currentFiles.length + currentDirectories.length;
     final allSelected = totalItems > 0 && selectedPaths.length == totalItems;
@@ -427,74 +486,96 @@ class FilesPageState extends State<FilesPage> {
     BuildContext context,
     List<RecordingFileInfo> files,
   ) async {
-    const int patientId = PolysomnographyConstants.defaultPatientId;
-    const double samplingFrequency =
-        PolysomnographyConstants.defaultSamplingFrequencyHz;
+    final patientIdController = TextEditingController();
+    final patientNameController = TextEditingController();
 
-    final confirmed = await showDialog<bool>(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Отправка в полисомнографию'),
-            content: Text(
-              'Отправить ${files.length} файл(ов)?\n'
-              'patient_id=$patientId, частота ${samplingFrequency.toInt()} Гц',
+    final result = await showDialog<({
+      int patientId,
+      String patientName,
+    })>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Отправка в полисомнографию'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text('Файлов к отправке: ${files.length}'),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: patientIdController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'ID пациента *',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: patientNameController,
+                  decoration: const InputDecoration(
+                    labelText: 'Имя пациента *',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ],
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(false),
-                child: const Text('Отмена'),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.of(context).pop(true),
-                child: const Text('Отправить'),
-              ),
-            ],
           ),
-        ) ??
-        false;
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Отмена'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final pid = int.tryParse(patientIdController.text.trim());
+                final name = patientNameController.text.trim();
+                if (pid == null || name.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Заполните ID и имя пациента'),
+                    ),
+                  );
+                  return;
+                }
+                Navigator.of(context).pop((patientId: pid, patientName: name));
+              },
+              child: const Text('Отправить'),
+            ),
+          ],
+        );
+      },
+    );
 
-    if (!confirmed) return;
+    if (result == null) return;
 
     try {
-      final uploadedAll = <String>[];
-
       for (var i = 0; i < files.length; i++) {
         final info = files[i];
-        final parentName = info.file.parent.path
-            .split(Platform.pathSeparator)
-            .last;
-        final sessionId = RegExp(r'^session_\d+$').hasMatch(parentName)
-            ? parentName
-            : 'files';
-        final patientName =
-            PolysomnographyConstants.storageKey(sessionId, i + 1);
-
-        await polysomnographyService.uploadTxtFile(
+        final isTxt = info.file.path.toLowerCase().endsWith('.txt');
+        await polysomnographyService.uploadPatientFile(
           file: info.file,
-          patientId: patientId,
-          patientName: patientName,
-          samplingFrequency: samplingFrequency,
+          patientId: result.patientId,
+          patientName: '${result.patientName}_${i + 1}',
+          samplingFrequency: isTxt ? PolysomnographyConstants.defaultSamplingFrequencyHz : null,
         );
-
-        uploadedAll.add(info.file.path);
       }
 
       if (!mounted) return;
 
+      Get.find<PolysomnographyController>().setLastUploadedPatientId(result.patientId);
+      Get.find<NavigationController>().changeIndex(3);
+      filesProcessedPageKey.currentState?.loadPatientById(result.patientId);
+
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Отправлено файлов: ${files.length}\n'
-            'Файлы: ${uploadedAll.join(', ')}',
-          ),
-        ),
+        SnackBar(content: Text('Загружено файлов: ${files.length}')),
       );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Ошибка отправки: $e'),
-        ),
+        SnackBar(content: Text('Ошибка отправки: $e')),
       );
     }
   }

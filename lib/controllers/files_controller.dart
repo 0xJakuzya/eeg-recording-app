@@ -37,15 +37,14 @@ class FilesController {
     final subdirs = <Directory>[];
     final files = <RecordingFileInfo>[];
 
-    await for (final entity
-        in dir.list(recursive: false, followLinks: false)) { if (entity is Directory) {
+    await for (final entity in dir.list(recursive: false, followLinks: false)) {
+      if (entity is Directory) {
         final name = entity.path.split(Platform.pathSeparator).last;
         if (isRoot && !RegExp(r'^\d{2}\.\d{2}\.\d{4}$').hasMatch(name)) {
           continue;
         }
         subdirs.add(entity);
-      } 
-      else if (entity is File) {
+      } else if (entity is File) {
         final path = entity.path.toLowerCase();
         if (!path.endsWith(RecordingConstants.recordingFileExtension)) continue;
         final stat = await entity.stat();
@@ -57,9 +56,19 @@ class FilesController {
         ));
       }
     }
-    
-    // sorted 
-    subdirs.sort( (a, b) => a.path.toLowerCase().compareTo(b.path.toLowerCase()));
+
+    subdirs.sort((a, b) {
+      final aName = a.path.split(Platform.pathSeparator).last;
+      final bName = b.path.split(Platform.pathSeparator).last;
+      final aMatch = sessionFolderPattern.firstMatch(aName);
+      final bMatch = sessionFolderPattern.firstMatch(bName);
+      if (aMatch != null && bMatch != null) {
+        final an = int.tryParse(aMatch.group(1) ?? '') ?? 0;
+        final bn = int.tryParse(bMatch.group(1) ?? '') ?? 0;
+        return an.compareTo(bn);
+      }
+      return aName.toLowerCase().compareTo(bName.toLowerCase());
+    });
     files.sort((a, b) => b.modified.compareTo(a.modified));
 
     return RecordingDirectoryContent(
@@ -85,7 +94,7 @@ class FilesController {
     if (await dir.exists()) await dir.delete(recursive: true);
   }
 
-  static final _sessionFolderRegex = RegExp(r'^session_(\d+)$');
+  static final sessionFolderPattern = RegExp(r'^session_(\d+)$');
 
   /// Scans all date and session folders, returns max session number. Returns 0 if none.
   Future<int> getMaxExistingSessionNumber() async {
@@ -101,7 +110,7 @@ class FilesController {
       await for (final sub in entity.list(recursive: false, followLinks: false)) {
         if (sub is! Directory) continue;
         final sessionName = sub.path.split(Platform.pathSeparator).last;
-        final match = _sessionFolderRegex.firstMatch(sessionName);
+        final match = sessionFolderPattern.firstMatch(sessionName);
         if (match != null) {
           final n = int.tryParse(match.group(1) ?? '0') ?? 0;
           if (n > maxSession) maxSession = n;
@@ -117,11 +126,26 @@ class FilesController {
     await settingsController.setLastSessionNumber(maxSession);
   }
 
-  // share files 
+  // share file
   Future<void> shareFile(RecordingFileInfo info) async {
     if (!await info.file.exists()) return;
     final xFile = XFile(info.file.path);
     await Share.shareXFiles([xFile], text: 'EEG запись: ${info.name}');
+  }
+
+  // share multiple files
+  Future<void> shareFiles(List<RecordingFileInfo> files) async {
+    final existing = <XFile>[];
+    for (final info in files) {
+      if (await info.file.exists()) existing.add(XFile(info.file.path));
+    }
+    if (existing.isEmpty) return;
+    await Share.shareXFiles(
+      existing,
+      text: existing.length == 1
+          ? 'EEG запись: ${files.first.name}'
+          : 'EEG записи (${existing.length} файлов)',
+    );
   }
 
   Future<String> resolveRootDir() async {

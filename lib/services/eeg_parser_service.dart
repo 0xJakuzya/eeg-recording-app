@@ -19,14 +19,14 @@ class EegParserService {
   /// Returns all samples from the packet. For other formats returns single-element list.
   List<EegSample> parseAllBytes(List<int> bytes) {
     if (format == DataFormat.int24Be) {
-      return _parseInt24BeAll(bytes);
+      return parseInt24BeAll(bytes);
     }
     return [parseBytes(bytes)];
   }
 
   /// int24Be, 8 channels: [packet_header 2b][sample0: 8ch×3][sample1: 24b][sample2...]
   /// 100 bytes = 2 + 4×24 = 98 → 4 samples. One header per packet, samples contiguous.
-  List<EegSample> _parseInt24BeAll(List<int> bytes) {
+  List<EegSample> parseInt24BeAll(List<int> bytes) {
     const int packetHeaderBytes = 2;
     const int eegChannels = 8;
     const int bytesPerSample = eegChannels * 3; // 24
