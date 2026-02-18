@@ -80,7 +80,7 @@ class CsvStreamWriter {
     }
     final datePart = startedAt.format('dd.MM.yyyy');
     final timePart = startedAt.format('HH-mm');
-    return '${base}_${datePart}_${timePart}$ext';
+    return '${base}_${datePart}_$timePart$ext';
   }
 
   // write a sample to the buffer

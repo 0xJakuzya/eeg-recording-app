@@ -1,5 +1,6 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+import 'package:ble_app/core/app_theme.dart';
 
 // widget for displaying eeg line chart
 // supports 1-8 channels
@@ -27,8 +28,15 @@ class EegLineChart extends StatelessWidget {
   Widget build(BuildContext context) {
     final int numChannels = channelData.length;
     if (numChannels == 0) {
-      return const Center(child: Text('Нет данных'));
+      return Center(
+        child: Text('Нет данных', style: TextStyle(color: AppTheme.textSecondary)),
+      );
     }
+
+    const mutedTextStyle = TextStyle(
+      fontSize: 10,
+      color: AppTheme.textSecondary,
+    );
 
     final List<int> channelIndices =
         List<int>.generate(numChannels, (index) => index);
@@ -54,15 +62,16 @@ class EegLineChart extends StatelessWidget {
         );
       }).toList();
 
+      final channelColor = AppTheme.eegChannelColors[ch % AppTheme.eegChannelColors.length];
       lineBarsData.add(
         LineChartBarData(
           spots: spots,
           isCurved: true,
           curveSmoothness: 0.1,
-          color: Colors.black,
+          color: channelColor,
           dotData: const FlDotData(show: false),
           belowBarData: BarAreaData(show: false),
-          barWidth: 0.8,
+          barWidth: 1.0,
         ),
       );
     }
@@ -92,18 +101,16 @@ class EegLineChart extends StatelessWidget {
           maxX: maxX,
           titlesData: FlTitlesData(
             bottomTitles: AxisTitles(
-              axisNameWidget: const Text('Время (с)', style: TextStyle(fontSize: 12)),
+              axisNameWidget: const Text('Время (с)', style: TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
               sideTitles: SideTitles(
                 showTitles: true,
                 reservedSize: 30,
                 interval: (maxX / 5).clamp(0.5, double.infinity),
-                getTitlesWidget: (value, meta) {
-                  return Text(value.toStringAsFixed(0), style: const TextStyle(fontSize: 10));
-                },
+                getTitlesWidget: (value, meta) => Text(value.toStringAsFixed(0), style: mutedTextStyle),
               ),
             ),
             leftTitles: AxisTitles(
-              axisNameWidget: const Text('Каналы', style: TextStyle(fontSize: 12)),
+              axisNameWidget: const Text('Каналы', style: TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
               sideTitles: SideTitles(
                 showTitles: true,
                 reservedSize: 48,
@@ -117,25 +124,24 @@ class EegLineChart extends StatelessWidget {
                       break;
                     }
                   }
-                  if (closestKey == null) {
-                    return const SizedBox.shrink();
-                  }
-                  return Text(
-                    yLabels[closestKey]!,
-                    style: const TextStyle(fontSize: 10),
-                  );
+                  if (closestKey == null) return const SizedBox.shrink();
+                  return Text(yLabels[closestKey]!, style: mutedTextStyle);
                 },
               ),
             ),
             topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
             rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
           ),
-          gridData: const FlGridData(show: true),
+          gridData: FlGridData(
+            show: true,
+            getDrawingHorizontalLine: (_) => FlLine(color: AppTheme.gridLine, strokeWidth: 0.5),
+            getDrawingVerticalLine: (_) => FlLine(color: AppTheme.gridLine, strokeWidth: 0.5),
+          ),
           borderData: FlBorderData(
             show: true,
-            border: const Border(
-              left: BorderSide(),
-              bottom: BorderSide(),
+            border: Border(
+              left: BorderSide(color: AppTheme.borderSubtle),
+              bottom: BorderSide(color: AppTheme.borderSubtle),
             ),
           ),
         ),

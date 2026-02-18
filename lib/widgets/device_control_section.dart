@@ -3,6 +3,7 @@ import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:get/get.dart';
 import 'package:ble_app/controllers/ble_controller.dart';
 import 'package:ble_app/controllers/settings_controller.dart';
+import 'package:ble_app/core/app_theme.dart';
 import 'package:ble_app/core/recording_constants.dart';
 
 /// Section for BLE device control: sampling rate, start/stop transmission, ping.
@@ -29,17 +30,18 @@ class DeviceControlSection extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.orange.shade50,
-                  borderRadius: BorderRadius.circular(8),
+                  color: Colors.amber.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.amber.withValues(alpha: 0.4)),
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.info_outline, color: Colors.orange.shade700),
+                    Icon(Icons.info_outline, color: Colors.amber.shade300),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         'Подключите устройство для управления',
-                        style: TextStyle(color: Colors.orange.shade900),
+                        style: TextStyle(color: Colors.amber.shade200),
                       ),
                     ),
                   ],
@@ -48,14 +50,15 @@ class DeviceControlSection extends StatelessWidget {
             if (!isConnected) const SizedBox(height: 12),
             ListTile(
               contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.speed),
-              title: const Text('Частота дискретизации'),
-              subtitle: Text('$samplingRate Гц'),
-              trailing: const Icon(Icons.chevron_right),
+              leading: const Icon(Icons.speed, color: AppTheme.textSecondary),
+              title: const Text('Частота дискретизации', style: TextStyle(color: AppTheme.textPrimary)),
+              subtitle: Text('$samplingRate Гц', style: const TextStyle(color: AppTheme.textSecondary)),
+              trailing: const Icon(Icons.chevron_right, color: AppTheme.textSecondary),
               onTap: isConnected
                   ? () async {
                       final selected = await showModalBottomSheet<int>(
                         context: context,
+                        backgroundColor: AppTheme.backgroundSurface,
                         shape: const RoundedRectangleBorder(
                           borderRadius: BorderRadius.vertical(
                             top: Radius.circular(24),
@@ -76,7 +79,7 @@ class DeviceControlSection extends StatelessWidget {
                                     height: 4,
                                     margin: const EdgeInsets.only(bottom: 12),
                                     decoration: BoxDecoration(
-                                      color: Colors.grey.shade400,
+                                      color: AppTheme.textMuted,
                                       borderRadius: BorderRadius.circular(2),
                                     ),
                                   ),
@@ -85,13 +88,15 @@ class DeviceControlSection extends StatelessWidget {
                                     style: Theme.of(ctx)
                                         .textTheme
                                         .titleMedium
-                                        ?.copyWith(fontWeight: FontWeight.w600),
+                                        ?.copyWith(
+                                            fontWeight: FontWeight.w600,
+                                            color: AppTheme.textPrimary),
                                   ),
                                   const SizedBox(height: 8),
                                   for (final hz
                                       in RecordingConstants.supportedSamplingRates)
                                     ListTile(
-                                      title: Text('$hz Гц'),
+                                      title: Text('$hz Гц', style: const TextStyle(color: AppTheme.textPrimary)),
                                       onTap: () => Navigator.pop(ctx, hz),
                                     ),
                                 ],
@@ -127,6 +132,10 @@ class DeviceControlSection extends StatelessWidget {
                       },
                       icon: const Icon(Icons.send),
                       label: const Text('Применить'),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppTheme.accentPrimary,
+                        foregroundColor: AppTheme.textPrimary,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -146,6 +155,10 @@ class DeviceControlSection extends StatelessWidget {
                       },
                       icon: const Icon(Icons.wifi_tethering),
                       label: const Text('Ping'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppTheme.accentSecondary,
+                        side: const BorderSide(color: AppTheme.borderSubtle),
+                      ),
                     ),
                   ),
                 ],
@@ -156,7 +169,8 @@ class DeviceControlSection extends StatelessWidget {
                   Expanded(
                     child: FilledButton.icon(
                       style: FilledButton.styleFrom(
-                        backgroundColor: Colors.green.shade700,
+                        backgroundColor: AppTheme.statusPredictionReady,
+                        foregroundColor: AppTheme.textPrimary,
                       ),
                       onPressed: () async {
                         final ok =
@@ -179,7 +193,8 @@ class DeviceControlSection extends StatelessWidget {
                   Expanded(
                     child: FilledButton.icon(
                       style: FilledButton.styleFrom(
-                        backgroundColor: Colors.red.shade700,
+                        backgroundColor: AppTheme.statusFailed,
+                        foregroundColor: AppTheme.textPrimary,
                       ),
                       onPressed: () async {
                         final ok =

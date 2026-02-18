@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:ble_app/controllers/files_controller.dart';
+import 'package:ble_app/core/app_theme.dart';
 import 'package:ble_app/core/polysomnography_constants.dart';
 import 'package:ble_app/core/recording_constants.dart';
 import 'package:ble_app/models/processed_session_models.dart';
@@ -56,10 +57,10 @@ class FilesProcessedPageState extends State<FilesProcessedPage> {
     }
 
     dateDirs.sort((a, b) {
-      final parse = (String s) {
+      DateTime parse(String s) {
         final parts = s.split('.');
         return DateTime(int.parse(parts[2]), int.parse(parts[1]), int.parse(parts[0]));
-      };
+      }
       final aDate = parse(a.path.split(Platform.pathSeparator).last);
       final bDate = parse(b.path.split(Platform.pathSeparator).last);
       return bDate.compareTo(aDate);
@@ -89,7 +90,9 @@ class FilesProcessedPageState extends State<FilesProcessedPage> {
       if (entity is! File) continue;
       final name = entity.path.split(Platform.pathSeparator).last;
       if (!name.toLowerCase()
-          .endsWith(RecordingConstants.recordingFileExtension)) continue;
+          .endsWith(RecordingConstants.recordingFileExtension)) {
+        continue;
+      }
       sessions.add(ProcessedSession(
         id: name,
         directory: entity.parent,
@@ -226,26 +229,35 @@ class FilesProcessedPageState extends State<FilesProcessedPage> {
   Icon getPredictionStatusIcon(PredictionStatus status, BuildContext context) {
     switch (status) {
       case PredictionStatus.notStarted:
-        return Icon(
-          Icons.do_disturb,
-          color: Theme.of(context).colorScheme.outline,
-        );
+        return const Icon(Icons.do_disturb, color: AppTheme.textMuted);
       case PredictionStatus.inProgress:
-        return Icon(
-          Icons.autorenew,
-          color: Theme.of(context).colorScheme.primary,
-        );
+        return const Icon(Icons.autorenew, color: AppTheme.accentSecondary);
       case PredictionStatus.done:
-        return Icon(
-          Icons.check_circle,
-          color: Colors.green,
-        );
+        return const Icon(Icons.check_circle, color: AppTheme.statusPredictionReady);
       case PredictionStatus.failed:
-        return Icon(
-          Icons.error,
-          color: Colors.red,
-        );
+        return const Icon(Icons.error, color: AppTheme.statusFailed);
     }
+  }
+
+  BoxDecoration _sessionCardDecoration(PredictionStatus status) {
+    final borderColor = status == PredictionStatus.done
+        ? AppTheme.statusPredictionReady.withValues(alpha: 0.4)
+        : AppTheme.borderSubtle;
+    final hasGlow = status == PredictionStatus.done;
+    return BoxDecoration(
+      color: AppTheme.backgroundSurface,
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: borderColor),
+      boxShadow: hasGlow
+          ? [
+              BoxShadow(
+                color: AppTheme.statusPredictionReady.withValues(alpha: 0.12),
+                blurRadius: 8,
+                spreadRadius: 0,
+              ),
+            ]
+          : null,
+    );
   }
 
   @override
@@ -273,14 +285,22 @@ class FilesProcessedPageState extends State<FilesProcessedPage> {
             future: sessionsLoadFuture,
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
+                return Center(
+                  child: CircularProgressIndicator(
+                    color: AppTheme.accentSecondary,
+                  ),
+                );
               }
 
               if (snapshot.hasError) {
                 return Center(
-                  child: Text(
-                    'Ошибка загрузки сессий: ${snapshot.error}',
-                    textAlign: TextAlign.center,
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Text(
+                      'Ошибка загрузки сессий: ${snapshot.error}',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: AppTheme.textSecondary),
+                    ),
                   ),
                 );
               }
@@ -295,31 +315,70 @@ class FilesProcessedPageState extends State<FilesProcessedPage> {
                   cachedSessions.isNotEmpty ? cachedSessions : sessions;
 
               if (displaySessions.isEmpty) {
-                return const Center(
-                  child: Text('На сегодня сессии не найдены'),
+                return Center(
+                  child: Text(
+                    'На сегодня сессии не найдены',
+                    style: const TextStyle(color: AppTheme.textSecondary),
+                  ),
                 );
               }
 
-              return ListView.separated(
+              return ListView.builder(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 itemCount: displaySessions.length,
-                separatorBuilder: (_, __) => const Divider(height: 1),
                 itemBuilder: (context, index) {
                   final session = displaySessions[index];
                   final statusLabel =
                       getPredictionStatusLabel(session.predictionStatus);
 
-                  return ListTile(
-                    leading: Icon(
-                      Icons.folder,
-                      color: Theme.of(context).colorScheme.primary,
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: InkWell(
+                      onTap: isProcessingInProgress
+                          ? null
+                          : () => onSessionTap(session),
+                      borderRadius: BorderRadius.circular(16),
+                      child: Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: _sessionCardDecoration(
+                            session.predictionStatus),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.folder,
+                              color: AppTheme.accentPrimary,
+                              size: 28,
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    session.id,
+                                    style: const TextStyle(
+                                      color: AppTheme.textPrimary,
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 16,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    statusLabel,
+                                    style: const TextStyle(
+                                      color: AppTheme.textSecondary,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            getPredictionStatusIcon(
+                                session.predictionStatus, context),
+                          ],
+                        ),
+                      ),
                     ),
-                    title: Text(session.id),
-                    subtitle: Text(statusLabel),
-                    trailing: getPredictionStatusIcon(
-                        session.predictionStatus, context),
-                    onTap: isProcessingInProgress
-                        ? null
-                        : () => onSessionTap(session),
                   );
                 },
               );
@@ -328,8 +387,12 @@ class FilesProcessedPageState extends State<FilesProcessedPage> {
           if (isProcessingInProgress)
             AbsorbPointer(
               child: Container(
-                color: Colors.black26,
-                child: const Center(child: CircularProgressIndicator()),
+                color: Colors.black54,
+                child: Center(
+                  child: CircularProgressIndicator(
+                    color: AppTheme.accentSecondary,
+                  ),
+                ),
               ),
             ),
         ],

@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:ble_app/controllers/files_controller.dart';
+import 'package:ble_app/core/app_theme.dart';
 import 'package:ble_app/core/polysomnography_constants.dart';
 import 'package:ble_app/models/recording_models.dart';
 import 'package:ble_app/services/polysomnography_service.dart';
@@ -70,14 +71,14 @@ class FilesPageState extends State<FilesPage> {
                 onPressed: () => Navigator.of(context).pop(false),
                 child: const Text('Отмена'),
               ),
-              FilledButton(
-                onPressed: () => Navigator.of(context).pop(true),
-                style: FilledButton.styleFrom(
-                  backgroundColor: Colors.red,
-                  foregroundColor: Colors.white,
-                ),
-                child: const Text('Удалить'),
-              ),
+                              FilledButton(
+                                onPressed: () => Navigator.of(context).pop(true),
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: AppTheme.statusFailed,
+                                  foregroundColor: AppTheme.textPrimary,
+                                ),
+                                child: const Text('Удалить'),
+                              ),
             ],
           ),
         ) ??
@@ -170,8 +171,8 @@ class FilesPageState extends State<FilesPage> {
                             onPressed: () =>
                                 Navigator.of(context).pop(true),
                             style: FilledButton.styleFrom(
-                              backgroundColor: Colors.red,
-                              foregroundColor: Colors.white,
+                              backgroundColor: AppTheme.statusFailed,
+                              foregroundColor: AppTheme.textPrimary,
                             ),
                             child: const Text('Удалить'),
                           ),
@@ -257,18 +258,27 @@ class FilesPageState extends State<FilesPage> {
                               ? segments.last
                               : dir.path;
 
-                      return Card(
+                      return Container(
                         margin: const EdgeInsets.symmetric(
                             horizontal: 16, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: AppTheme.backgroundSurface,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: AppTheme.borderSubtle),
+                        ),
                         child: ListTile(
                           leading: Icon(
                             isSelected ? Icons.check_circle : Icons.folder,
-                            color: Theme.of(context).colorScheme.primary,
+                            color: isSelected
+                                ? AppTheme.accentSecondary
+                                : AppTheme.accentPrimary,
                           ),
-                          title: Text(name),
-                          subtitle:
-                              const Text('Нажмите, чтобы открыть папку'),
-                          trailing: const Icon(Icons.chevron_right),
+                          title: Text(name, style: const TextStyle(color: AppTheme.textPrimary)),
+                          subtitle: const Text(
+                            'Нажмите, чтобы открыть папку',
+                            style: TextStyle(color: AppTheme.textSecondary),
+                          ),
+                          trailing: const Icon(Icons.chevron_right, color: AppTheme.textSecondary),
                           onTap: () {
                             if (selectionMode) {
                               setState(() {
@@ -319,26 +329,33 @@ class FilesPageState extends State<FilesPage> {
                     final path = info.file.path;
                     final isSelected =
                         selectionMode && selectedPaths.contains(path);
-                    return Card(
+                    return Container(
                       margin: const EdgeInsets.symmetric(
                           horizontal: 16, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: AppTheme.backgroundSurface,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: AppTheme.borderSubtle),
+                      ),
                       child: ListTile(
                         leading: Icon(
                           isSelected
                               ? Icons.check_circle
                               : Icons.insert_drive_file,
-                          color:
-                              Theme.of(context).colorScheme.primary,
+                          color: isSelected
+                              ? AppTheme.accentSecondary
+                              : AppTheme.accentPrimary,
                         ),
-                        title: Text(info.name),
+                        title: Text(info.name, style: const TextStyle(color: AppTheme.textPrimary)),
                         subtitle: Text(
                           'Дата: ${info.formattedModified}   •   Размер: ${info.formattedSize}',
+                          style: const TextStyle(color: AppTheme.textSecondary),
                         ),
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             IconButton(
-                              icon: const Icon(Icons.share),
+                              icon: const Icon(Icons.share, color: AppTheme.textSecondary),
                               onPressed: () => FilesPage
                                   .filesController
                                   .shareFile(info),

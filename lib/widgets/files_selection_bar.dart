@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:ble_app/core/app_theme.dart';
 
 class FilesSelectionBar extends StatelessWidget {
   const FilesSelectionBar({
@@ -27,37 +28,55 @@ class FilesSelectionBar extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
-          boxShadow: const [
+          color: AppTheme.backgroundSurface,
+          border: const Border(
+            top: BorderSide(color: AppTheme.borderSubtle),
+          ),
+          boxShadow: [
             BoxShadow(
-              color: Colors.black26,
+              color: Colors.black.withValues(alpha: 0.2),
               blurRadius: 4,
-              offset: Offset(0, -2),
+              offset: const Offset(0, -2),
             ),
           ],
         ),
         child: Row(
           children: [
-            Text('Выбрано: $selectedCount'),
+            Text(
+              'Выбрано: $selectedCount',
+              style: const TextStyle(color: AppTheme.textPrimary),
+            ),
             const Spacer(),
             TextButton.icon(
               onPressed: totalItems == 0 ? null : onToggleSelectAll,
               icon: Icon(
                 allSelected ? Icons.deselect : Icons.select_all,
+                color: AppTheme.accentSecondary,
               ),
-              label: Text(allSelected ? 'Снять все' : 'Выбрать все'),
+              label: Text(
+                allSelected ? 'Снять все' : 'Выбрать все',
+                style: const TextStyle(color: AppTheme.accentSecondary),
+              ),
             ),
             const SizedBox(width: 8),
             FilledButton.icon(
               onPressed: hasSelectedFiles ? onUploadSelected : null,
               icon: const Icon(Icons.cloud_upload),
               label: const Text('Отправить'),
+              style: FilledButton.styleFrom(
+                backgroundColor: AppTheme.accentPrimary,
+                foregroundColor: AppTheme.textPrimary,
+              ),
             ),
             const SizedBox(width: 8),
             FilledButton.icon(
               onPressed: selectedCount == 0 ? null : onDeleteSelected,
               icon: const Icon(Icons.delete),
               label: const Text('Удалить'),
+              style: FilledButton.styleFrom(
+                backgroundColor: AppTheme.statusFailed,
+                foregroundColor: AppTheme.textPrimary,
+              ),
             ),
           ],
         ),

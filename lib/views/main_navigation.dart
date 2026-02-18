@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:ble_app/core/app_theme.dart';
 import 'package:ble_app/views/connection_page.dart';
 import 'package:ble_app/views/recording_page.dart';
 import 'package:ble_app/views/files_page.dart';
@@ -33,29 +34,37 @@ class MainNavigation extends StatelessWidget {
           ],
         ),
         // bottom navigation bar
-        bottomNavigationBar: BottomNavigationBar(
-          currentIndex: controller.currentIndex.value,
-          onTap: (index) {
-            controller.changeIndex(index);
-            if (index == 2) {
-              filesPageKey.currentState?.refreshFiles();
-            } else if (index == 3) {
-              filesProcessedPageKey.currentState?.refreshSessions();
-            }
-          },
-          type: BottomNavigationBarType.fixed,
-          items: const [
-            BottomNavigationBarItem(
-                icon: Icon(Icons.bluetooth), label: 'Подключение'),
-            BottomNavigationBarItem(
-                icon: Icon(Icons.fiber_manual_record), label: 'Запись'),
-            BottomNavigationBarItem(
-                icon: Icon(Icons.folder), label: 'Файлы'),
-            BottomNavigationBarItem(
-                icon: Icon(Icons.timeline), label: 'Обработка'),
-            BottomNavigationBarItem(
-                icon: Icon(Icons.settings), label: 'Настройки'),
-          ],
+        bottomNavigationBar: Container(
+          decoration: const BoxDecoration(
+            border: Border(top: BorderSide(color: AppTheme.borderSubtle)),
+          ),
+          child: BottomNavigationBar(
+            currentIndex: controller.currentIndex.value,
+            onTap: (index) {
+              controller.changeIndex(index);
+              if (index == 2) {
+                filesPageKey.currentState?.refreshFiles();
+              } else if (index == 3) {
+                filesProcessedPageKey.currentState?.refreshSessions();
+              }
+            },
+            type: BottomNavigationBarType.fixed,
+            backgroundColor: AppTheme.backgroundSecondary,
+            selectedItemColor: AppTheme.accentSecondary,
+            unselectedItemColor: AppTheme.textMuted,
+            items: const [
+              BottomNavigationBarItem(
+                  icon: Icon(Icons.bluetooth), label: 'Подключение'),
+              BottomNavigationBarItem(
+                  icon: Icon(Icons.fiber_manual_record), label: 'Запись'),
+              BottomNavigationBarItem(
+                  icon: Icon(Icons.folder), label: 'Файлы'),
+              BottomNavigationBarItem(
+                  icon: Icon(Icons.timeline), label: 'Обработка'),
+              BottomNavigationBarItem(
+                  icon: Icon(Icons.settings), label: 'Настройки'),
+            ],
+          ),
         ),
       ),
     );

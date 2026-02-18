@@ -2,6 +2,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:ble_app/controllers/settings_controller.dart';
+import 'package:ble_app/core/app_theme.dart';
 import 'package:ble_app/utils/extension.dart';
 import 'package:ble_app/widgets/device_control_section.dart';
 
@@ -28,7 +29,7 @@ class SettingsPage extends StatelessWidget {
             'Запись',
             style: Theme.of(context).textTheme.titleSmall?.copyWith(
                   fontWeight: FontWeight.w600,
-                  color: Theme.of(context).colorScheme.primary,
+                  color: AppTheme.accentSecondary,
                 ),
           ),
           const SizedBox(height: 8),
@@ -82,6 +83,7 @@ class SettingsPage extends StatelessWidget {
                     onTap: () async {
                       final selected = await showModalBottomSheet<int>(
                         context: context,
+                        backgroundColor: AppTheme.backgroundSurface,
                         shape: const RoundedRectangleBorder(
                           borderRadius: BorderRadius.vertical(
                             top: Radius.circular(24),
@@ -102,7 +104,7 @@ class SettingsPage extends StatelessWidget {
                                     height: 4,
                                     margin: const EdgeInsets.only(bottom: 12),
                                     decoration: BoxDecoration(
-                                      color: Colors.grey.shade400,
+                                      color: AppTheme.textMuted,
                                       borderRadius: BorderRadius.circular(2),
                                     ),
                                   ),
@@ -111,7 +113,9 @@ class SettingsPage extends StatelessWidget {
                                     style: Theme.of(ctx)
                                         .textTheme
                                         .titleMedium
-                                        ?.copyWith(fontWeight: FontWeight.w600),
+                                        ?.copyWith(
+                                            fontWeight: FontWeight.w600,
+                                            color: AppTheme.textPrimary),
                                   ),
                                   const SizedBox(height: 8),
                                   for (final value in options)
@@ -120,6 +124,7 @@ class SettingsPage extends StatelessWidget {
                                         value < 60
                                             ? '$value минут'
                                             : '${(value / 60).round()} часов',
+                                        style: const TextStyle(color: AppTheme.textPrimary),
                                       ),
                                       onTap: () => Navigator.pop(ctx, value),
                                     ),
@@ -144,11 +149,16 @@ class SettingsPage extends StatelessWidget {
             'Устройство',
             style: Theme.of(context).textTheme.titleSmall?.copyWith(
                   fontWeight: FontWeight.w600,
-                  color: Theme.of(context).colorScheme.primary,
+                  color: AppTheme.accentSecondary,
                 ),
           ),
           const SizedBox(height: 8),
-          DeviceControlSection(settingsController: settingsController),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: DeviceControlSection(settingsController: settingsController),
+            ),
+          ),
           const SizedBox(height: 8),
           Card(
             child: Obx(() {
@@ -174,6 +184,7 @@ class SettingsPage extends StatelessWidget {
                 onTap: () async {
                   final selected = await showModalBottomSheet<DataFormat>(
                     context: context,
+                    backgroundColor: AppTheme.backgroundSurface,
                     shape: const RoundedRectangleBorder(
                       borderRadius: BorderRadius.vertical(
                         top: Radius.circular(24),
@@ -194,7 +205,7 @@ class SettingsPage extends StatelessWidget {
                                 height: 4,
                                 margin: const EdgeInsets.only(bottom: 12),
                                 decoration: BoxDecoration(
-                                  color: Colors.grey.shade400,
+                                  color: AppTheme.textMuted,
                                   borderRadius: BorderRadius.circular(2),
                                 ),
                               ),
@@ -203,21 +214,23 @@ class SettingsPage extends StatelessWidget {
                                 style: Theme.of(ctx)
                                     .textTheme
                                     .titleMedium
-                                    ?.copyWith(fontWeight: FontWeight.w600),
+                                    ?.copyWith(
+                                        fontWeight: FontWeight.w600,
+                                        color: AppTheme.textPrimary),
                               ),
                               const SizedBox(height: 8),
                               ListTile(
-                                title: const Text('int8'),
+                                title: const Text('int8', style: TextStyle(color: AppTheme.textPrimary)),
                                 onTap: () =>
                                     Navigator.pop(ctx, DataFormat.int8),
                               ),
                               ListTile(
-                                title: const Text('int12'),
+                                title: const Text('int12', style: TextStyle(color: AppTheme.textPrimary)),
                                 onTap: () =>
                                     Navigator.pop(ctx, DataFormat.uint12Le),
                               ),
                               ListTile(
-                                title: const Text('int24 (8 каналов, вольты)'),
+                                title: const Text('int24 (8 каналов, вольты)', style: TextStyle(color: AppTheme.textPrimary)),
                                 onTap: () =>
                                     Navigator.pop(ctx, DataFormat.int24Be),
                               ),
@@ -239,7 +252,7 @@ class SettingsPage extends StatelessWidget {
             'Информация',
             style: Theme.of(context).textTheme.titleSmall?.copyWith(
                   fontWeight: FontWeight.w600,
-                  color: Theme.of(context).colorScheme.primary,
+                  color: AppTheme.accentSecondary,
                 ),
           ),
           const SizedBox(height: 8),

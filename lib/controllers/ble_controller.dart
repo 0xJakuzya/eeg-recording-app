@@ -30,7 +30,9 @@ class BleController extends GetxController {
     
     // start scanning
     if (lastScanAt != null &&
-        now.difference(lastScanAt!) < BleConstants.minScanInterval) return;
+        now.difference(lastScanAt!) < BleConstants.minScanInterval) {
+      return;
+    }
     isScanning.value = true;
     try {
       lastScanAt = now;

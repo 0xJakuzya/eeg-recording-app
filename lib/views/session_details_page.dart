@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:ble_app/core/app_theme.dart';
 import 'package:ble_app/core/polysomnography_constants.dart';
 import 'package:ble_app/models/processed_session_models.dart';
 import 'package:ble_app/services/polysomnography_service.dart';
@@ -35,7 +36,9 @@ class HypnogramImageState extends State<HypnogramImage> {
       future: imageLoadFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
+          return Center(
+            child: CircularProgressIndicator(color: AppTheme.accentSecondary),
+          );
         }
         if (snapshot.hasError) {
           return HypnogramErrorContent(message: '${snapshot.error}');
@@ -69,17 +72,57 @@ class HypnogramErrorContent extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('Ошибка загрузки гипнограммы'),
+            const Text(
+              'Ошибка загрузки гипнограммы',
+              style: TextStyle(color: AppTheme.textPrimary),
+            ),
             const SizedBox(height: 8),
             Text(
               message,
-              style: Theme.of(context).textTheme.bodySmall,
+              style: const TextStyle(color: AppTheme.textSecondary),
               textAlign: TextAlign.center,
               maxLines: 5,
               overflow: TextOverflow.ellipsis,
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _HypnogramCard extends StatelessWidget {
+  const _HypnogramCard({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppTheme.backgroundSurface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppTheme.borderSubtle),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Гипнограмма',
+            style: TextStyle(
+              color: AppTheme.textPrimary,
+              fontWeight: FontWeight.w600,
+              fontSize: 16,
+            ),
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            height: MediaQuery.of(context).size.height * 0.5,
+            child: child,
+          ),
+        ],
       ),
     );
   }
@@ -124,34 +167,15 @@ class SessionDetailsPage extends StatelessWidget {
           padding: const EdgeInsets.all(16),
           children: [
             if (hypnogramWidget != null)
-              Card(
-                margin: const EdgeInsets.only(bottom: 16),
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Гипнограмма',
-                        style: Theme.of(context)
-                            .textTheme
-                            .titleMedium
-                            ?.copyWith(fontWeight: FontWeight.w600),
-                      ),
-                      const SizedBox(height: 8),
-                      SizedBox(
-                        height: MediaQuery.of(context).size.height * 0.5,
-                        child: hypnogramWidget,
-                      ),
-                    ],
-                  ),
-                ),
-              )
+              _HypnogramCard(child: hypnogramWidget)
             else
-              const Center(
+              Center(
                 child: Padding(
-                  padding: EdgeInsets.all(24),
-                  child: Text('Данных предикта для этой сессии пока нет'),
+                  padding: const EdgeInsets.all(24),
+                  child: Text(
+                    'Данных предикта для этой сессии пока нет',
+                    style: const TextStyle(color: AppTheme.textSecondary),
+                  ),
                 ),
               ),
           ],
@@ -162,37 +186,14 @@ class SessionDetailsPage extends StatelessWidget {
     final List<Widget> children = <Widget>[];
 
     if (hypnogramWidget != null) {
-      children.add(
-        Card(
-          margin: const EdgeInsets.only(bottom: 16),
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Гипнограмма',
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleMedium
-                      ?.copyWith(fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: 8),
-                SizedBox(
-                  height: MediaQuery.of(context).size.height * 0.5,
-                  child: hypnogramWidget,
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
+      children.add(_HypnogramCard(child: hypnogramWidget));
     }
 
     children.addAll(
       prediction.entries.map((entry) {
         final stage = entry.key;
         final intervals = entry.value;
+        final stageColor = AppTheme.getStageColor(stage);
 
         final List<Widget> chips = <Widget>[];
         if (intervals is List) {
@@ -203,14 +204,24 @@ class SessionDetailsPage extends StatelessWidget {
               chips.add(
                 Chip(
                   label: Text('$start–$end с'),
+                  backgroundColor: stageColor.withValues(alpha: 0.2),
+                  side: BorderSide(color: stageColor.withValues(alpha: 0.5)),
+                  labelStyle: TextStyle(color: AppTheme.textPrimary),
                 ),
               );
             }
           }
         }
 
-        return Card(
+        return Container(
           margin: const EdgeInsets.only(bottom: 12),
+          decoration: BoxDecoration(
+            color: AppTheme.backgroundSurface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: stageColor.withValues(alpha: 0.4),
+            ),
+          ),
           child: Padding(
             padding: const EdgeInsets.all(12),
             child: Column(
@@ -218,16 +229,17 @@ class SessionDetailsPage extends StatelessWidget {
               children: [
                 Text(
                   stage,
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleMedium
-                      ?.copyWith(fontWeight: FontWeight.w600),
+                  style: TextStyle(
+                    color: stageColor,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 16,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 if (chips.isEmpty)
                   const Text(
                     'Интервалы отсутствуют',
-                    style: TextStyle(color: Colors.black54),
+                    style: TextStyle(color: AppTheme.textSecondary),
                   )
                 else
                   Wrap(

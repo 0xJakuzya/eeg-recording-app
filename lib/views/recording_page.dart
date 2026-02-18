@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:ble_app/core/app_theme.dart';
 import 'package:ble_app/core/recording_constants.dart';
 import 'package:ble_app/controllers/settings_controller.dart';
 import 'package:ble_app/controllers/recording_controller.dart';
@@ -33,6 +34,8 @@ class RecordingPageState extends State<RecordingPage> {
   int currentAmplitudeIndex = 1;
 
   Timer? chartUpdateTimer;
+  final ValueNotifier<List<List<EegDataPoint>>> chartDataNotifier =
+      ValueNotifier([]);
 
   @override
   void initState() {
@@ -44,12 +47,14 @@ class RecordingPageState extends State<RecordingPage> {
   void onRecordingStateChanged(bool recording) {
     chartUpdateTimer?.cancel();
     if (recording) {
+      chartDataNotifier.value = buildChartData();
       chartUpdateTimer = Timer.periodic(chartUpdateInterval, (_) {
         if (mounted && recordingController.isRecording.value) {
-          setState(() {});
+          chartDataNotifier.value = buildChartData();
         }
       });
     } else {
+      chartDataNotifier.value = [];
       chartUpdateTimer = null;
     }
   }
@@ -57,6 +62,7 @@ class RecordingPageState extends State<RecordingPage> {
   @override
   void dispose() {
     chartUpdateTimer?.cancel();
+    chartDataNotifier.dispose();
     super.dispose();
   }
 
@@ -83,7 +89,9 @@ class RecordingPageState extends State<RecordingPage> {
     final visibleCount = n - minIdx;
     final indices = <int>[];
     if (visibleCount <= maxPoints) {
-      for (int i = minIdx; i < n; i++) indices.add(i);
+      for (int i = minIdx; i < n; i++) {
+        indices.add(i);
+      }
     } else {
       for (int i = 0; i < maxPoints; i++) {
         final offset = (i * (visibleCount - 1) / (maxPoints - 1))
@@ -153,58 +161,60 @@ class RecordingPageState extends State<RecordingPage> {
                   filePath: recordingController.currentFilePath.value,
                 )),
             const SizedBox(height: 12),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'График сигнала',
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            TextButton.icon(
-                              onPressed: cycleTimeWindow,
-                              icon: const Icon(Icons.speed),
-                              label: Text(
-                                'Окно ${windowSeconds.toStringAsFixed(0)}',
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            TextButton.icon(
-                              onPressed: cycleAmplitudeScale,
-                              icon: const Icon(Icons.stacked_line_chart),
-                              label: Text('Ампл x${amplitudeScale.toStringAsFixed(1)}'),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    Container(
-                      height: 450,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(8),
-                        color: Theme.of(context)
-                            .colorScheme
-                            .primary
-                            .withOpacity(0.02),
+            Container(
+              padding: const EdgeInsets.all(16.0),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.5),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'График сигнала',
+                        style: Theme.of(context).textTheme.titleMedium,
                       ),
-                      child: EegLineChart(
-                        channelData: buildChartData(),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          TextButton.icon(
+                            onPressed: cycleTimeWindow,
+                            icon: const Icon(Icons.speed),
+                            label: Text(
+                              'Окно ${windowSeconds.toStringAsFixed(0)}',
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          TextButton.icon(
+                            onPressed: cycleAmplitudeScale,
+                            icon: const Icon(Icons.stacked_line_chart),
+                            label: Text(
+                                'Ампл x${amplitudeScale.toStringAsFixed(1)}'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    height: 450,
+                    child: ValueListenableBuilder<List<List<EegDataPoint>>>(
+                      valueListenable: chartDataNotifier,
+                      builder: (_, data, child) => EegLineChart(
+                        channelData: data,
                         windowSeconds: windowSeconds,
                         amplitudeScale: amplitudeScale,
                         displayRange: displayRange,
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 16),
@@ -223,9 +233,9 @@ class RecordingPageState extends State<RecordingPage> {
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     backgroundColor: recordingController.isRecording.value
-                        ? Colors.redAccent
-                        : Colors.indigo,
-                    foregroundColor: Colors.white,
+                        ? AppTheme.statusRecording
+                        : AppTheme.accentPrimary,
+                    foregroundColor: AppTheme.textPrimary,
                   ),
                 )),
           ],
