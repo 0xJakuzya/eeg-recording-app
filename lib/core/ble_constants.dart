@@ -2,6 +2,8 @@ class BleConstants {
   BleConstants._();
   static const Duration scanTimeout = Duration(seconds: 5);
   static const Duration connectTimeout = Duration(seconds: 5);
+  /// Target MTU for larger packets (Android only). 512 allows ~5 samples/packet at 8ch×3.
+  static const int requestMtuSize = 512;
   static const Duration minScanInterval = Duration(seconds: 3);
   static const Duration scanResultsCollectDelay = Duration(milliseconds: 800);
   static const int defaultSampleRateHz = 300;

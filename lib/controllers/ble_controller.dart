@@ -1,3 +1,5 @@
+import 'dart:developer' as dev;
+import 'dart:io' show Platform;
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:get/get.dart';
 import 'package:ble_app/core/ble_constants.dart';
@@ -67,6 +69,16 @@ class BleController extends GetxController {
     );
 
     connectedDevice.value = device;
+
+    if (Platform.isAndroid) {
+      try {
+        final mtu = await device.requestMtu(BleConstants.requestMtuSize);
+        if (mtu > 0) dev.log('BLE MTU negotiated: $mtu', name: 'BleController');
+      } catch (_) {
+        // MTU negotiation failed, continue with default
+      }
+    }
+
     final discoveredServices = await device.discoverServices();
     services.value = discoveredServices;
     autoSelectDataCharacteristic(discoveredServices);

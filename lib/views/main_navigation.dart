@@ -7,6 +7,8 @@ import 'package:ble_app/views/files_processed_page.dart';
 import 'package:ble_app/views/settings_page.dart';
 
 final GlobalKey<FilesPageState> filesPageKey = GlobalKey<FilesPageState>();
+final GlobalKey<FilesProcessedPageState> filesProcessedPageKey =
+    GlobalKey<FilesProcessedPageState>();
 
 // view for displaying the main navigation
 // uses navigation controller to change the current index
@@ -26,7 +28,7 @@ class MainNavigation extends StatelessWidget {
             const ConnectionPage(), // connection page
             const RecordingPage(), // recording page
             FilesPage(key: filesPageKey), // files page
-            const FilesProcessedPage(), // processed files / data processing page
+            FilesProcessedPage(key: filesProcessedPageKey),
             const SettingsPage(), // settings page
           ],
         ),
@@ -37,6 +39,8 @@ class MainNavigation extends StatelessWidget {
             controller.changeIndex(index);
             if (index == 2) {
               filesPageKey.currentState?.refreshFiles();
+            } else if (index == 3) {
+              filesProcessedPageKey.currentState?.refreshSessions();
             }
           },
           type: BottomNavigationBarType.fixed,

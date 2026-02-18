@@ -185,6 +185,9 @@ class FilesPageState extends State<FilesPage> {
                 for (final dir in toDeleteDirs) {
                   await FilesPage.filesController.deleteDirectory(dir);
                 }
+                if (toDeleteDirs.isNotEmpty) {
+                  await FilesPage.filesController.syncSessionCounter();
+                }
 
                 for (final info in toDeleteFiles) {
                   await FilesPage.filesController.deleteFile(info);
@@ -424,46 +427,17 @@ class FilesPageState extends State<FilesPage> {
     BuildContext context,
     List<RecordingFileInfo> files,
   ) async {
-    final patientIdController = TextEditingController();
-    final patientNameController = TextEditingController();
+    const int patientId = PolysomnographyConstants.defaultPatientId;
     const double samplingFrequency =
         PolysomnographyConstants.defaultSamplingFrequencyHz;
+
     final confirmed = await showDialog<bool>(
           context: context,
           builder: (context) => AlertDialog(
             title: const Text('Отправка в полисомнографию'),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: patientIdController,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      labelText: 'ID пациента',
-                      hintText: 'Например, 1',
-                    ),
-                  ),
-                  TextField(
-                    controller: patientNameController,
-                    decoration: const InputDecoration(
-                      labelText: 'Имя пациента',
-                      hintText: 'patient_name',
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      'Частота дискретизации: ${PolysomnographyConstants.defaultSamplingFrequencyHz.toInt()} Гц',
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: Colors.black54,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+            content: Text(
+              'Отправить ${files.length} файл(ов)?\n'
+              'patient_id=$patientId, частота ${samplingFrequency.toInt()} Гц',
             ),
             actions: [
               TextButton(
@@ -481,35 +455,24 @@ class FilesPageState extends State<FilesPage> {
 
     if (!confirmed) return;
 
-    final idText = patientIdController.text.trim();
-    final name = patientNameController.text.trim();
-
-    if (idText.isEmpty || name.isEmpty) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Заполните все поля')),
-      );
-      return;
-    }
-
-    final patientId = int.tryParse(idText);
-    if (patientId == null) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Неверный формат ID пациента')),
-      );
-      return;
-    }
-
     try {
       final uploadedAll = <String>[];
 
-      for (final info in files) {
+      for (var i = 0; i < files.length; i++) {
+        final info = files[i];
+        final parentName = info.file.parent.path
+            .split(Platform.pathSeparator)
+            .last;
+        final sessionId = RegExp(r'^session_\d+$').hasMatch(parentName)
+            ? parentName
+            : 'files';
+        final patientName =
+            PolysomnographyConstants.storageKey(sessionId, i + 1);
 
         await polysomnographyService.uploadTxtFile(
           file: info.file,
           patientId: patientId,
-          patientName: name,
+          patientName: patientName,
           samplingFrequency: samplingFrequency,
         );
 

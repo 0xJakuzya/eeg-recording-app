@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer' as dev;
 import 'package:get/get.dart';
 import 'package:ble_app/controllers/ble_controller.dart';
 import 'package:ble_app/controllers/files_controller.dart';
@@ -8,6 +9,7 @@ import 'package:ble_app/core/recording_constants.dart';
 import 'package:ble_app/services/csv_stream_service.dart';
 import 'package:ble_app/services/eeg_parser_service.dart';
 import 'package:ble_app/services/eeg_foreground_service.dart';
+import 'package:ble_app/utils/extension.dart';
 import 'package:ble_app/utils/signal_filters.dart';
 
 // controller for recording eeg data
@@ -21,7 +23,7 @@ class RecordingController extends GetxController {
 
   late CsvStreamWriter csvWriter;
   late EegParserService parser;
-  late Notch50HzFilter polysomnographyFilter;
+  late List<Notch50HzFilter> polysomnographyFilters;
 
   final RxBool isRecording = false.obs;
   final Rx<String?> currentFilePath = Rx<String?>(null);
@@ -34,6 +36,10 @@ class RecordingController extends GetxController {
   StreamSubscription? dataSubscription;
   Timer? durationTimer;
 
+  // debug: packet rate and length logging
+  int _packetsLastSecond = 0;
+  int _lastPacketLength = 0;
+
   @override
   void onInit() {
     super.onInit();
@@ -43,22 +49,27 @@ class RecordingController extends GetxController {
   // init services
   void initServices() {
     final channels = settingsController.channelCount.value;
+    final format = settingsController.dataFormat.value;
     final rotationMinutes = settingsController.rotationIntervalMinutes.value;
     final rotation = Duration(
       minutes: rotationMinutes > 0
           ? rotationMinutes
           : RecordingConstants.defaultRotationIntervalMinutes,
     );
+    final writeChannels = format == DataFormat.int24Be
+        ? RecordingConstants.csvWriteChannelCount.clamp(1, 8)
+        : 1;
     csvWriter = CsvStreamWriter(
-      channelCount: 1, // 1 channel for write
+      channelCount: writeChannels,
       rotationInterval: rotation,
+      outputVolts: format.outputsVolts,
     );
     parser = EegParserService(
-      channelCount: channels,
-      format: settingsController.dataFormat.value,
+      channelCount: format == DataFormat.int24Be ? 8 : channels,
+      format: format,
     );
-    // notch filter 50 Hz for write files
-    polysomnographyFilter = Notch50HzFilter();
+    polysomnographyFilters =
+        List.generate(writeChannels, (_) => Notch50HzFilter());
   }
 
   // stop recording
@@ -84,6 +95,8 @@ class RecordingController extends GetxController {
     isRecording.value = true;
     recordingStartTime.value = DateTime.now();
     sampleCount.value = 0;
+    _packetsLastSecond = 0;
+    _lastPacketLength = 0;
     realtimeBuffer.clear();
     startDurationTimer();
   }
@@ -94,7 +107,8 @@ class RecordingController extends GetxController {
     dataSubscription = null;
     durationTimer?.cancel();
     durationTimer = null;
-    await csvWriter.stopRecording();
+    final elapsed = recordingDuration.value.inMilliseconds / 1000.0;
+    await csvWriter.stopRecording(durationSeconds: elapsed > 0 ? elapsed : null);
     await stopEegForegroundService();
     isRecording.value = false;
     await Future.delayed(RecordingConstants.postStopDelay);
@@ -104,23 +118,40 @@ class RecordingController extends GetxController {
 
   // start parse bytes and write to csv
   void onDataReceived(List<int> bytes) {
+    _packetsLastSecond++;
+    _lastPacketLength = bytes.length;
+    final rawSamples = parser.parseAllBytes(bytes);
+    for (final rawSample in rawSamples) {
+      sampleCount.value++;
+      realtimeBuffer.add(rawSample);
+      if (realtimeBuffer.length > RecordingConstants.realtimeBufferMaxSize) {
+        realtimeBuffer.removeAt(0);
+      }
 
-    // raw data for vizualization
-    final rawSample = parser.parseBytes(bytes);
-    sampleCount.value++;
-    realtimeBuffer.add(rawSample);
-    if (realtimeBuffer.length > RecordingConstants.realtimeBufferMaxSize) {
-      realtimeBuffer.removeAt(0);
+      final format = settingsController.dataFormat.value;
+      EegSample sampleToWrite;
+      if (format.outputsVolts && rawSample.channels.length > 1) {
+        final maxCh = RecordingConstants.csvWriteChannelCount.clamp(1, 8);
+        final filteredChannels = <double>[];
+        for (int i = 0; i < rawSample.channels.length && i < maxCh; i++) {
+          filteredChannels.add(
+              polysomnographyFilters[i].process(rawSample.channels[i]));
+        }
+        sampleToWrite = EegSample(
+          timestamp: rawSample.timestamp,
+          channels: filteredChannels,
+        );
+      } else {
+        final rawValue =
+            rawSample.channels.isNotEmpty ? rawSample.channels[0] : 0.0;
+        final filteredValue = polysomnographyFilters[0].process(rawValue);
+        sampleToWrite = EegSample(
+          timestamp: rawSample.timestamp,
+          channels: [filteredValue],
+        );
+      }
+      csvWriter.writeSample(sampleToWrite);
     }
-
-    // processed data for service polysomnography
-    final rawValue = rawSample.channels.isNotEmpty ? rawSample.channels[0] : 0.0;
-    final filteredValue = polysomnographyFilter.process(rawValue);
-    final filteredSample = EegSample(
-      timestamp: rawSample.timestamp,
-      channels: [filteredValue],
-    );
-    csvWriter.writeSample(filteredSample); // write processed data in .txt
   }
 
   // start duration timer
@@ -131,6 +162,13 @@ class RecordingController extends GetxController {
         final start = recordingStartTime.value;
         if (start != null) {
           recordingDuration.value = DateTime.now().difference(start);
+        }
+        if (isRecording.value && _packetsLastSecond > 0) {
+          dev.log(
+            'Recording: ${_packetsLastSecond} packets/s, lastLen=${_lastPacketLength} bytes, total=${sampleCount.value}',
+            name: 'RecordingController',
+          );
+          _packetsLastSecond = 0;
         }
       },
     );

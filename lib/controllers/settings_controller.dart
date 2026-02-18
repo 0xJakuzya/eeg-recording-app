@@ -68,7 +68,15 @@ class SettingsController extends GetxController {
     if (value != null && value >= 0) {lastSessionNumber.value = value;}
   }
 
-  // get next session number 
+  /// Sets last session number (used when syncing with disk after folder deletion).
+  Future<void> setLastSessionNumber(int value) async {
+    final clamped = value < 0 ? 0 : value;
+    lastSessionNumber.value = clamped;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(keyLastSessionNumber, clamped);
+  }
+
+  // get next session number
   Future<int> getNextSessionNumber() async {
     final prefs = await SharedPreferences.getInstance();
     final current = prefs.getInt(keyLastSessionNumber) ?? 0;

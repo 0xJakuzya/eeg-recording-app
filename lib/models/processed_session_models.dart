@@ -33,6 +33,23 @@ class ProcessedSession {
   });
   
   String get path => directory.path;
+
+  ProcessedSession copyWith({
+    ProcessingStatus? status,
+    PredictionStatus? predictionStatus,
+    Map<String, dynamic>? prediction,
+    int? jsonIndex,
+  }) {
+    return ProcessedSession(
+      id: id,
+      directory: directory,
+      status: status ?? this.status,
+      predictionStatus: predictionStatus ?? this.predictionStatus,
+      prediction: prediction ?? this.prediction,
+      jsonIndex: jsonIndex ?? this.jsonIndex,
+    );
+  }
+
   factory ProcessedSession.fromDirectory(
     Directory directory, {
     ProcessingStatus status = ProcessingStatus.unknown,
