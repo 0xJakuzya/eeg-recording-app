@@ -1,13 +1,11 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'package:http_parser/http_parser.dart';
 import 'package:ble_app/controllers/files_controller.dart';
 import 'package:ble_app/core/polysomnography_constants.dart';
 import 'package:ble_app/core/recording_constants.dart';
 import 'package:ble_app/models/processed_session_models.dart';
+import 'package:ble_app/services/polysomnography_service.dart';
 import 'package:ble_app/views/session_details_page.dart';
 import 'package:ble_app/utils/extension.dart';
 
@@ -20,107 +18,88 @@ class FilesProcessedPage extends StatefulWidget {
 
 class FilesProcessedPageState extends State<FilesProcessedPage> {
   static const FilesController filesController = FilesController();
+  final PolysomnographyApiService polysomnographyService =
+      PolysomnographyApiService(
+    baseUrl: PolysomnographyConstants.defaultBaseUrl,
+  );
 
-  List<ProcessedSession> _sessions = [];
-  bool _isProcessing = false;
-  Future<List<ProcessedSession>>? _sessionsFuture;
+  List<ProcessedSession> cachedSessions = [];
+  bool isProcessingInProgress = false;
+  Future<List<ProcessedSession>>? sessionsLoadFuture;
 
   Future<List<ProcessedSession>> loadTodaySessions() async {
     final root = await filesController.recordingsDirectory;
-    final todayName =
-        DateTime.now().toLocal().format('dd.MM.yyyy');
-    final dateRegex = RegExp(r'^\d{2}\.\d{2}\.\d{4}$');
-    Directory dateDir;
-    final rootName = root.path.split(Platform.pathSeparator).last;
-    if (dateRegex.hasMatch(rootName)) {
-      dateDir = root;
-    } else {
-      final rootContent =
-          await filesController.listDirectory(directory: root);
-      final dateDirs = rootContent.subdirectories.where((dir) {
-        final name = dir.path.split(Platform.pathSeparator).last;
-        return dateRegex.hasMatch(name);
-      }).toList();
-
-      Directory? todayDir;
-      for (final dir in dateDirs) {
-        final name = dir.path.split(Platform.pathSeparator).last;
-        if (name == todayName) {
-          todayDir = dir;
-          break;
-        }
-      }
-
-      if (todayDir != null) {
-        dateDir = todayDir;
-      } else {
-        dateDirs.sort((a, b) {
-          DateTime parse(String s) {
-            final parts = s.split('.');
-            final day = int.parse(parts[0]);
-            final month = int.parse(parts[1]);
-            final year = int.parse(parts[2]);
-            return DateTime(year, month, day);
-          }
-
-          final aName = a.path.split(Platform.pathSeparator).last;
-          final bName = b.path.split(Platform.pathSeparator).last;
-          final aDate = parse(aName);
-          final bDate = parse(bName);
-          return bDate.compareTo(aDate);
-        });
-        dateDir = dateDirs.first;
-      }
-    }
+    final dateDir = await resolveDateDirectory(root);
     final dateEntities =
         await dateDir.list(recursive: false, followLinks: false).toList();
-
-    final sessionDirRegex = RegExp(r'^session_\d+$');
-    final sessions = <ProcessedSession>[];
-    final sessionDirs = <Directory>[];
-    for (final entity in dateEntities) {
-      if (entity is Directory) {
-        final name = entity.path.split(Platform.pathSeparator).last;
-        if (sessionDirRegex.hasMatch(name)) {
-          sessionDirs.add(entity);
-        }
-      }
-    }
-    if (sessionDirs.isNotEmpty) {
-      for (final dir in sessionDirs) {
-        sessions.add(
-          ProcessedSession.fromDirectory(
-            dir,
-            status: ProcessingStatus.unknown,
-          ),
-        );
-      }
-    } else {
-      for (final entity in dateEntities) {
-        if (entity is File) {
-          final name = entity.path.split(Platform.pathSeparator).last;
-          if (!name
-              .toLowerCase()
-              .endsWith(RecordingConstants.recordingFileExtension)) {
-            continue;
-          }
-
-          final id = name;
-          sessions.add(
-            ProcessedSession(
-              id: id,
-              directory: entity.parent,
-              status: ProcessingStatus.unknown,
-            ),
-          );
-        }
-      }
-    }
+    final sessions = await collectSessionsFromDateDir(dateEntities);
     sessions.sort((a, b) => a.id.compareTo(b.id));
     return sessions;
   }
 
-  Future<List<File>> _getSessionFiles(ProcessedSession session) async {
+  Future<Directory> resolveDateDirectory(Directory root) async {
+    final dateRegex = RegExp(r'^\d{2}\.\d{2}\.\d{4}$');
+    final rootName = root.path.split(Platform.pathSeparator).last;
+    if (dateRegex.hasMatch(rootName)) return root;
+
+    final rootContent = await filesController.listDirectory(directory: root);
+    final dateDirs = rootContent.subdirectories
+        .where((d) => dateRegex.hasMatch(
+            d.path.split(Platform.pathSeparator).last))
+        .toList();
+
+    final todayName = DateTime.now().toLocal().format('dd.MM.yyyy');
+    for (final dir in dateDirs) {
+      if (dir.path.split(Platform.pathSeparator).last == todayName) {
+        return dir;
+      }
+    }
+
+    dateDirs.sort((a, b) {
+      final parse = (String s) {
+        final parts = s.split('.');
+        return DateTime(int.parse(parts[2]), int.parse(parts[1]), int.parse(parts[0]));
+      };
+      final aDate = parse(a.path.split(Platform.pathSeparator).last);
+      final bDate = parse(b.path.split(Platform.pathSeparator).last);
+      return bDate.compareTo(aDate);
+    });
+    return dateDirs.first;
+  }
+
+  Future<List<ProcessedSession>> collectSessionsFromDateDir(
+      List<FileSystemEntity> entities) async {
+    final sessionDirRegex = RegExp(r'^session_\d+$');
+    final sessions = <ProcessedSession>[];
+
+    final sessionDirs = entities.whereType<Directory>().where((d) {
+      final name = d.path.split(Platform.pathSeparator).last;
+      return sessionDirRegex.hasMatch(name);
+    }).toList();
+
+    if (sessionDirs.isNotEmpty) {
+      for (final dir in sessionDirs) {
+        sessions.add(ProcessedSession.fromDirectory(dir,
+            status: ProcessingStatus.unknown));
+      }
+      return sessions;
+    }
+
+    for (final entity in entities) {
+      if (entity is! File) continue;
+      final name = entity.path.split(Platform.pathSeparator).last;
+      if (!name.toLowerCase()
+          .endsWith(RecordingConstants.recordingFileExtension)) continue;
+      sessions.add(ProcessedSession(
+        id: name,
+        directory: entity.parent,
+        status: ProcessingStatus.unknown,
+      ));
+    }
+    return sessions;
+  }
+
+  Future<List<File>> getSessionFiles(ProcessedSession session) async {
     final dir = session.directory;
     final files = <File>[];
 
@@ -149,9 +128,9 @@ class FilesProcessedPageState extends State<FilesProcessedPage> {
     return files;
   }
 
-  Future<void> _processSession(
+  Future<void> processSession(
       BuildContext context, ProcessedSession session) async {
-    final files = await _getSessionFiles(session);
+    final files = await getSessionFiles(session);
     if (files.isEmpty) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -160,137 +139,35 @@ class FilesProcessedPageState extends State<FilesProcessedPage> {
       return;
     }
 
-    // Константы: всегда первый файл, данные без запросов пользователю
     const int fileIndex = 0;
-    const int patientId = PolysomnographyConstants.defaultPatientId;
-    const double samplingFreq =
-        PolysomnographyConstants.defaultSamplingFrequencyHz;
 
-    setState(() => _isProcessing = true);
+    setState(() => isProcessingInProgress = true);
 
     try {
-      final baseUrl = PolysomnographyConstants.defaultBaseUrl;
-      final uploadUri =
-          Uri.parse('$baseUrl${PolysomnographyConstants.saveUserFilePath}');
-
-      for (var i = 0; i < files.length; i++) {
-        final fileToUpload = files[i];
-        final storageKey =
-            PolysomnographyConstants.storageKey(session.id, i + 1);
-
-        // Как PolysomnographyApiService — query params (сервер может ожидать только их)
-        final uriWithQuery = uploadUri.replace(queryParameters: {
-          'patient_id': patientId.toString(),
-          'patient_name': storageKey,
-          'sampling_frequency': samplingFreq.toString(),
-        });
-        final request = http.MultipartRequest('POST', uriWithQuery);
-
-        final filename = fileToUpload.path.split(Platform.pathSeparator).last;
-        final isEdf = filename.toLowerCase().endsWith('.edf');
-        request.files.add(
-          await http.MultipartFile.fromPath(
-            'file',
-            fileToUpload.path,
-            filename: filename,
-            contentType: isEdf
-                ? MediaType('application', 'octet-stream')
-                : MediaType('text', 'plain'),
-          ),
-        );
-
-        final uploadResponse = await request.send();
-        final uploadBody = await uploadResponse.stream.bytesToString();
-
-        if (uploadResponse.statusCode != 200) {
-          throw Exception(
-              'Ошибка загрузки: ${uploadResponse.statusCode} $uploadBody');
-        }
-      }
+      await polysomnographyService.uploadSessionFiles(
+        files: files,
+        sessionId: session.id,
+      );
 
       final fileToPredict = files[fileIndex];
       final isEdf = fileToPredict.path.toLowerCase().endsWith('.edf');
-      final predictStorageKey =
-          PolysomnographyConstants.storageKey(session.id, fileIndex + 1);
 
-      // save_predict_json
-      final predictBase =
-          '$baseUrl${PolysomnographyConstants.savePredictJsonPath}';
-      http.Response predictResponse;
-
-      if (PolysomnographyConstants.predictUseQueryParams) {
-        var predictUri = Uri.parse(predictBase).replace(queryParameters: {
-          'patient_id': patientId.toString(),
-          'patient_name': predictStorageKey,
-          'file_index': fileIndex.toString(),
-        });
-        if (isEdf) {
-          predictUri = predictUri.replace(
-            queryParameters: {
-              ...predictUri.queryParameters,
-              'channel': PolysomnographyConstants.preferredEdfChannel,
-            },
-          );
-        }
-        predictResponse = await http.post(predictUri);
-      } else {
-        final predictBody = <String, dynamic>{
-          'patient_id': patientId,
-          'patient_name': predictStorageKey,
-          'file_index': fileIndex,
-        };
-        if (isEdf) {
-          predictBody['channel'] =
-              PolysomnographyConstants.preferredEdfChannel;
-        }
-        predictResponse = await http.post(
-          Uri.parse(predictBase),
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode(predictBody),
-        );
-      }
-
-      if (predictResponse.statusCode != 200) {
-        String detail = predictResponse.body;
-        try {
-          final err = jsonDecode(predictResponse.body);
-          if (err is Map && err['detail'] != null) {
-            detail = err['detail'].toString();
-          }
-        } catch (_) {}
-        throw Exception(
-            'Ошибка предикта ${predictResponse.statusCode}: $detail');
-      }
-
-      final decoded = jsonDecode(predictResponse.body);
-      if (decoded is! Map<String, dynamic>) {
-        throw Exception('Некорректный ответ сервера');
-      }
-
-      // Индекс сохранённого JSON-файла (используется в sleep_graph для построения гипнограммы)
-      int? jsonIndex;
-      for (final key in ['index', 'json_index', 'file_index', 'id']) {
-        if (decoded[key] != null) {
-          jsonIndex = int.tryParse(decoded[key].toString());
-          if (jsonIndex != null) break;
-        }
-      }
-      Map<String, dynamic>? prediction;
-      if (decoded['prediction'] is Map) {
-        prediction =
-            Map<String, dynamic>.from(decoded['prediction'] as Map);
-      }
+      final result = await polysomnographyService.requestPredict(
+        sessionId: session.id,
+        fileIndex: fileIndex,
+        isEdf: isEdf,
+      );
 
       final updated = session.copyWith(
         predictionStatus: PredictionStatus.done,
-        prediction: prediction,
-        jsonIndex: jsonIndex,
+        prediction: result.prediction,
+        jsonIndex: result.jsonIndex,
       );
 
-      final idx = _sessions.indexWhere((s) => s.id == session.id);
-      if (idx >= 0) {
+      final sessionIndex = cachedSessions.indexWhere((s) => s.id == session.id);
+      if (sessionIndex >= 0) {
         setState(() {
-          _sessions = List.from(_sessions)..[idx] = updated;
+          cachedSessions = List.from(cachedSessions)..[sessionIndex] = updated;
         });
       }
 
@@ -315,12 +192,12 @@ class FilesProcessedPageState extends State<FilesProcessedPage> {
       );
     } finally {
       if (mounted) {
-        setState(() => _isProcessing = false);
+        setState(() => isProcessingInProgress = false);
       }
     }
   }
 
-  void _onSessionTap(ProcessedSession session) {
+  void onSessionTap(ProcessedSession session) {
     if (session.predictionStatus == PredictionStatus.done) {
       Navigator.push(
         context,
@@ -329,11 +206,11 @@ class FilesProcessedPageState extends State<FilesProcessedPage> {
         ),
       );
     } else {
-      _processSession(context, session);
+      processSession(context, session);
     }
   }
 
-  String _statusText(PredictionStatus status) {
+  String getPredictionStatusLabel(PredictionStatus status) {
     switch (status) {
       case PredictionStatus.notStarted:
         return 'Предикт не запускался';
@@ -346,7 +223,7 @@ class FilesProcessedPageState extends State<FilesProcessedPage> {
     }
   }
 
-  Icon _statusIcon(PredictionStatus status, BuildContext context) {
+  Icon getPredictionStatusIcon(PredictionStatus status, BuildContext context) {
     switch (status) {
       case PredictionStatus.notStarted:
         return Icon(
@@ -379,8 +256,8 @@ class FilesProcessedPageState extends State<FilesProcessedPage> {
 
   void refreshSessions() {
     setState(() {
-      _sessions = [];
-      _sessionsFuture = loadTodaySessions();
+      cachedSessions = [];
+      sessionsLoadFuture = loadTodaySessions();
     });
   }
 
@@ -393,7 +270,7 @@ class FilesProcessedPageState extends State<FilesProcessedPage> {
       body: Stack(
         children: [
           FutureBuilder<List<ProcessedSession>>(
-            future: _sessionsFuture,
+            future: sessionsLoadFuture,
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(child: CircularProgressIndicator());
@@ -409,12 +286,13 @@ class FilesProcessedPageState extends State<FilesProcessedPage> {
               }
 
               final sessions = snapshot.data ?? <ProcessedSession>[];
-              if (_sessions.isEmpty && sessions.isNotEmpty) {
+              if (cachedSessions.isEmpty && sessions.isNotEmpty) {
                 WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (mounted) setState(() => _sessions = sessions);
+                  if (mounted) setState(() => cachedSessions = sessions);
                 });
               }
-              final displaySessions = _sessions.isNotEmpty ? _sessions : sessions;
+              final displaySessions =
+                  cachedSessions.isNotEmpty ? cachedSessions : sessions;
 
               if (displaySessions.isEmpty) {
                 return const Center(
@@ -427,7 +305,8 @@ class FilesProcessedPageState extends State<FilesProcessedPage> {
                 separatorBuilder: (_, __) => const Divider(height: 1),
                 itemBuilder: (context, index) {
                   final session = displaySessions[index];
-                  final statusLabel = _statusText(session.predictionStatus);
+                  final statusLabel =
+                      getPredictionStatusLabel(session.predictionStatus);
 
                   return ListTile(
                     leading: Icon(
@@ -436,16 +315,17 @@ class FilesProcessedPageState extends State<FilesProcessedPage> {
                     ),
                     title: Text(session.id),
                     subtitle: Text(statusLabel),
-                    trailing: _statusIcon(session.predictionStatus, context),
-                    onTap: _isProcessing
+                    trailing: getPredictionStatusIcon(
+                        session.predictionStatus, context),
+                    onTap: isProcessingInProgress
                         ? null
-                        : () => _onSessionTap(session),
+                        : () => onSessionTap(session),
                   );
                 },
               );
             },
           ),
-          if (_isProcessing)
+          if (isProcessingInProgress)
             AbsorbPointer(
               child: Container(
                 color: Colors.black26,

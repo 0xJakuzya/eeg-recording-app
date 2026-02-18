@@ -36,9 +36,8 @@ class RecordingController extends GetxController {
   StreamSubscription? dataSubscription;
   Timer? durationTimer;
 
-  // debug: packet rate and length logging
-  int _packetsLastSecond = 0;
-  int _lastPacketLength = 0;
+  int packetsCountInLastSecond = 0;
+  int lastReceivedPacketLength = 0;
 
   @override
   void onInit() {
@@ -95,8 +94,8 @@ class RecordingController extends GetxController {
     isRecording.value = true;
     recordingStartTime.value = DateTime.now();
     sampleCount.value = 0;
-    _packetsLastSecond = 0;
-    _lastPacketLength = 0;
+    packetsCountInLastSecond = 0;
+    lastReceivedPacketLength = 0;
     realtimeBuffer.clear();
     startDurationTimer();
   }
@@ -116,10 +115,9 @@ class RecordingController extends GetxController {
     recordingDuration.value = Duration.zero;
   }
 
-  // start parse bytes and write to csv
   void onDataReceived(List<int> bytes) {
-    _packetsLastSecond++;
-    _lastPacketLength = bytes.length;
+    packetsCountInLastSecond++;
+    lastReceivedPacketLength = bytes.length;
     final rawSamples = parser.parseAllBytes(bytes);
     for (final rawSample in rawSamples) {
       sampleCount.value++;
@@ -127,31 +125,32 @@ class RecordingController extends GetxController {
       if (realtimeBuffer.length > RecordingConstants.realtimeBufferMaxSize) {
         realtimeBuffer.removeAt(0);
       }
-
-      final format = settingsController.dataFormat.value;
-      EegSample sampleToWrite;
-      if (format.outputsVolts && rawSample.channels.length > 1) {
-        final maxCh = RecordingConstants.csvWriteChannelCount.clamp(1, 8);
-        final filteredChannels = <double>[];
-        for (int i = 0; i < rawSample.channels.length && i < maxCh; i++) {
-          filteredChannels.add(
-              polysomnographyFilters[i].process(rawSample.channels[i]));
-        }
-        sampleToWrite = EegSample(
-          timestamp: rawSample.timestamp,
-          channels: filteredChannels,
-        );
-      } else {
-        final rawValue =
-            rawSample.channels.isNotEmpty ? rawSample.channels[0] : 0.0;
-        final filteredValue = polysomnographyFilters[0].process(rawValue);
-        sampleToWrite = EegSample(
-          timestamp: rawSample.timestamp,
-          channels: [filteredValue],
-        );
-      }
+      final sampleToWrite = prepareSampleForRecording(rawSample);
       csvWriter.writeSample(sampleToWrite);
     }
+  }
+
+  EegSample prepareSampleForRecording(EegSample rawSample) {
+    final format = settingsController.dataFormat.value;
+    if (format.outputsVolts && rawSample.channels.length > 1) {
+      final maxCh = RecordingConstants.csvWriteChannelCount.clamp(1, 8);
+      final filteredChannels = <double>[];
+      for (int i = 0; i < rawSample.channels.length && i < maxCh; i++) {
+        filteredChannels.add(
+            polysomnographyFilters[i].process(rawSample.channels[i]));
+      }
+      return EegSample(
+        timestamp: rawSample.timestamp,
+        channels: filteredChannels,
+      );
+    }
+    final rawValue =
+        rawSample.channels.isNotEmpty ? rawSample.channels[0] : 0.0;
+    final filteredValue = polysomnographyFilters[0].process(rawValue);
+    return EegSample(
+      timestamp: rawSample.timestamp,
+      channels: [filteredValue],
+    );
   }
 
   // start duration timer
@@ -163,12 +162,12 @@ class RecordingController extends GetxController {
         if (start != null) {
           recordingDuration.value = DateTime.now().difference(start);
         }
-        if (isRecording.value && _packetsLastSecond > 0) {
+        if (isRecording.value && packetsCountInLastSecond > 0) {
           dev.log(
-            'Recording: ${_packetsLastSecond} packets/s, lastLen=${_lastPacketLength} bytes, total=${sampleCount.value}',
+            'Recording: $packetsCountInLastSecond packets/s, lastLen=$lastReceivedPacketLength bytes, total=${sampleCount.value}',
             name: 'RecordingController',
           );
-          _packetsLastSecond = 0;
+          packetsCountInLastSecond = 0;
         }
       },
     );

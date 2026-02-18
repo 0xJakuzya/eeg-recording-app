@@ -9,7 +9,7 @@ import 'package:ble_app/widgets/eeg_plots.dart';
 import 'package:ble_app/widgets/recording_status_card.dart';
 
 /// Интервал обновления графика при записи (≈20 FPS)
-const Duration _chartUpdateInterval = Duration(milliseconds: 50);
+const Duration chartUpdateInterval = Duration(milliseconds: 50);
 
 // view for recording and visualizing eeg data
 // displays real-time signal charts, recording controls
@@ -32,32 +32,31 @@ class RecordingPageState extends State<RecordingPage> {
   int currentWindowIndex = 0;
   int currentAmplitudeIndex = 1;
 
-  Timer? _chartUpdateTimer;
+  Timer? chartUpdateTimer;
 
   @override
   void initState() {
     super.initState();
-    ever(recordingController.isRecording, _onRecordingChanged);
-    _onRecordingChanged(recordingController.isRecording.value);
+    ever(recordingController.isRecording, onRecordingStateChanged);
+    onRecordingStateChanged(recordingController.isRecording.value);
   }
 
-  void _onRecordingChanged(bool isRecording) {
-    if (isRecording) {
-      _chartUpdateTimer?.cancel();
-      _chartUpdateTimer = Timer.periodic(_chartUpdateInterval, (_) {
+  void onRecordingStateChanged(bool recording) {
+    chartUpdateTimer?.cancel();
+    if (recording) {
+      chartUpdateTimer = Timer.periodic(chartUpdateInterval, (_) {
         if (mounted && recordingController.isRecording.value) {
           setState(() {});
         }
       });
     } else {
-      _chartUpdateTimer?.cancel();
-      _chartUpdateTimer = null;
+      chartUpdateTimer = null;
     }
   }
 
   @override
   void dispose() {
-    _chartUpdateTimer?.cancel();
+    chartUpdateTimer?.cancel();
     super.dispose();
   }
 

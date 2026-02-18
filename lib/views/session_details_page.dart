@@ -1,63 +1,53 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:ble_app/core/polysomnography_constants.dart';
 import 'package:ble_app/models/processed_session_models.dart';
+import 'package:ble_app/services/polysomnography_service.dart';
 
-/// Загружает гипнограмму через http.get и показывает детали при ошибке.
-class _HypnogramImage extends StatefulWidget {
-  const _HypnogramImage({required this.uri});
+/// Загружает гипнограмму через PolysomnographyApiService.
+class HypnogramImage extends StatefulWidget {
+  const HypnogramImage({
+    super.key,
+    required this.service,
+    required this.index,
+  });
 
-  final Uri uri;
+  final PolysomnographyApiService service;
+  final int index;
 
   @override
-  State<_HypnogramImage> createState() => _HypnogramImageState();
+  State<HypnogramImage> createState() => HypnogramImageState();
 }
 
-class _HypnogramImageState extends State<_HypnogramImage> {
-  late final Future<http.Response> _future;
+class HypnogramImageState extends State<HypnogramImage> {
+  late final Future<List<int>> imageLoadFuture;
 
   @override
   void initState() {
     super.initState();
-    _future = http.get(widget.uri);
+    imageLoadFuture = widget.service.fetchSleepGraphImage(widget.index);
   }
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<http.Response>(
-      future: _future,
+    return FutureBuilder<List<int>>(
+      future: imageLoadFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
         if (snapshot.hasError) {
-          return _ErrorContent(
-            uri: widget.uri.toString(),
-            message: '${snapshot.error}',
-          );
+          return HypnogramErrorContent(message: '${snapshot.error}');
         }
-        final response = snapshot.data!;
-        if (response.statusCode != 200) {
-          final body = response.body.length > 150
-              ? '${response.body.substring(0, 150)}...'
-              : response.body;
-          return _ErrorContent(
-            uri: widget.uri.toString(),
-            message: 'HTTP ${response.statusCode}\n$body',
-          );
-        }
-        final bytes = response.bodyBytes;
+        final bytes = snapshot.data!;
         if (bytes.isEmpty) {
-          return _ErrorContent(
-            uri: widget.uri.toString(),
-            message: 'Пустой ответ',
-          );
+          return const HypnogramErrorContent(message: 'Пустой ответ');
         }
         return Image.memory(
-          bytes,
+          Uint8List.fromList(bytes),
           fit: BoxFit.contain,
-          errorBuilder: (context, error, stackTrace) => _ErrorContent(
-            uri: widget.uri.toString(),
+          errorBuilder: (context, error, stackTrace) => HypnogramErrorContent(
             message: 'Не удалось декодировать изображение: $error',
           ),
         );
@@ -66,10 +56,9 @@ class _HypnogramImageState extends State<_HypnogramImage> {
   }
 }
 
-class _ErrorContent extends StatelessWidget {
-  const _ErrorContent({required this.uri, required this.message});
+class HypnogramErrorContent extends StatelessWidget {
+  const HypnogramErrorContent({super.key, required this.message});
 
-  final String uri;
   final String message;
 
   @override
@@ -89,17 +78,6 @@ class _ErrorContent extends StatelessWidget {
               maxLines: 5,
               overflow: TextOverflow.ellipsis,
             ),
-            const SizedBox(height: 4),
-            Text(
-              uri,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    fontSize: 11,
-                    color: Colors.grey,
-                  ),
-              textAlign: TextAlign.center,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
           ],
         ),
       ),
@@ -115,20 +93,27 @@ class SessionDetailsPage extends StatelessWidget {
 
   final ProcessedSession session;
 
+  static final PolysomnographyApiService polysomnographyService =
+      PolysomnographyApiService(
+    baseUrl: PolysomnographyConstants.defaultBaseUrl,
+  );
+
   @override
   Widget build(BuildContext context) {
     final prediction = session.prediction;
 
-    // sleep_graph: GET /users/sleep_graph?index=0 (0-based)
-    Uri? sleepGraphUri;
+    // sleep_graph: GET /users/sleep_graph?index=N (0-based)
+    int? sleepGraphIndex;
     if (session.jsonIndex != null) {
-      final idx = (session.jsonIndex! - 1).clamp(0, 999999);
-      sleepGraphUri = Uri.parse(
-              '${PolysomnographyConstants.defaultBaseUrl}${PolysomnographyConstants.sleepGraphPath}')
-          .replace(
-        queryParameters: <String, String>{'index': idx.toString()},
-      );
+      sleepGraphIndex = (session.jsonIndex! - 1).clamp(0, 999999);
     }
+
+    final hypnogramWidget = sleepGraphIndex != null
+        ? HypnogramImage(
+            service: polysomnographyService,
+            index: sleepGraphIndex,
+          )
+        : null;
 
     if (prediction == null || prediction.isEmpty) {
       return Scaffold(
@@ -138,7 +123,7 @@ class SessionDetailsPage extends StatelessWidget {
         body: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            if (sleepGraphUri != null) ...[
+            if (hypnogramWidget != null)
               Card(
                 margin: const EdgeInsets.only(bottom: 16),
                 child: Padding(
@@ -156,13 +141,13 @@ class SessionDetailsPage extends StatelessWidget {
                       const SizedBox(height: 8),
                       SizedBox(
                         height: MediaQuery.of(context).size.height * 0.5,
-                        child: _HypnogramImage(uri: sleepGraphUri),
+                        child: hypnogramWidget,
                       ),
                     ],
                   ),
                 ),
-              ),
-            ] else
+              )
+            else
               const Center(
                 child: Padding(
                   padding: EdgeInsets.all(24),
@@ -176,7 +161,7 @@ class SessionDetailsPage extends StatelessWidget {
 
     final List<Widget> children = <Widget>[];
 
-    if (sleepGraphUri != null) {
+    if (hypnogramWidget != null) {
       children.add(
         Card(
           margin: const EdgeInsets.only(bottom: 16),
@@ -195,7 +180,7 @@ class SessionDetailsPage extends StatelessWidget {
                 const SizedBox(height: 8),
                 SizedBox(
                   height: MediaQuery.of(context).size.height * 0.5,
-                  child: _HypnogramImage(uri: sleepGraphUri),
+                  child: hypnogramWidget,
                 ),
               ],
             ),

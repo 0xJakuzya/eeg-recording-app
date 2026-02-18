@@ -74,7 +74,7 @@ class BleController extends GetxController {
       try {
         final mtu = await device.requestMtu(BleConstants.requestMtuSize);
         if (mtu > 0) dev.log('BLE MTU negotiated: $mtu', name: 'BleController');
-      } catch (_) {
+      } catch (ignored) {
         // MTU negotiation failed, continue with default
       }
     }
@@ -167,7 +167,7 @@ class BleController extends GetxController {
         return false;
       }
       return true;
-    } catch (_) {
+    } catch (ignored) {
       return false;
     }
   }
@@ -197,14 +197,14 @@ class BleController extends GetxController {
       try {
         await writeChar.write(BleConstants.cmdOff.codeUnits);
         await Future.delayed(const Duration(milliseconds: 200));
-      } catch (_) {}
+      } catch (ignored) {}
     }
 
     final characteristic = selectedDataCharacteristic;
     if (characteristic != null) {
       try {
         await characteristic.setNotifyValue(false);
-      } catch (_) {}
+      } catch (ignored) {}
     }
 
     connectionState.value = BluetoothConnectionState.disconnecting;

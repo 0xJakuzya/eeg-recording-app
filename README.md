@@ -117,7 +117,7 @@ lib/
 │   ├── csv_stream_service.dart     # потоковая запись txt с ротацией
 │   ├── eeg_parser_service.dart     # парсинг bytes → EegSample (int8/12/24)
 │   ├── eeg_foreground_service.dart # foreground task при записи
-│   └── polysomnography_service.dart# uploadTxtFile (save_user_file)
+│   └── polysomnography_service.dart # API полисомнографии: uploadTxtFile,
 │
 ├── models/
 │   ├── eeg_models.dart             # EegSample, DataFormat

@@ -121,27 +121,29 @@ class SettingsController extends GetxController {
     await prefs.setInt(keySamplingRateHz, hz);
   }
 
-  /// Sends sampling rate to connected BLE device. Returns true on success.
+  BleController? get bleController =>
+      Get.isRegistered<BleController>() ? Get.find<BleController>() : null;
+
   Future<bool> applySamplingRateToDevice() async {
-    final ble = Get.isRegistered<BleController>() ? Get.find<BleController>() : null;
+    final ble = bleController;
     if (ble == null) return false;
     return ble.sendCommand(BleConstants.cmdSetSamplingRate(samplingRateHz.value));
   }
 
   Future<bool> sendPing() async {
-    final ble = Get.isRegistered<BleController>() ? Get.find<BleController>() : null;
+    final ble = bleController;
     if (ble == null) return false;
     return ble.sendCommand(BleConstants.cmdPing);
   }
 
   Future<bool> sendStartTransmission() async {
-    final ble = Get.isRegistered<BleController>() ? Get.find<BleController>() : null;
+    final ble = bleController;
     if (ble == null) return false;
     return ble.sendCommand(BleConstants.cmdStartTransmission);
   }
 
   Future<bool> sendStopTransmission() async {
-    final ble = Get.isRegistered<BleController>() ? Get.find<BleController>() : null;
+    final ble = bleController;
     if (ble == null) return false;
     return ble.sendCommand(BleConstants.cmdStopTransmission);
   }
