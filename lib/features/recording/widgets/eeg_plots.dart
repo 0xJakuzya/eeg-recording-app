@@ -10,14 +10,9 @@ class EegDataPoint {
 }
 
 class EegLineChart extends StatelessWidget {
-<<<<<<< HEAD:lib/widgets/eeg_plots.dart
-
   final List<List<EegDataPoint>> channelData;
   /// Зафиксированный след (отображается блекло)
   final List<List<EegDataPoint>> persistedChannelData;
-=======
-  final List<List<EegDataPoint>> channelData;
->>>>>>> 7f305aa641e8c919b719f0e405e79f64a8d73166:lib/features/recording/widgets/eeg_plots.dart
   final double windowSeconds;
   final double amplitudeScale;
   final double displayRange;
@@ -33,13 +28,9 @@ class EegLineChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-<<<<<<< HEAD:lib/widgets/eeg_plots.dart
     final int numChannels = channelData.isNotEmpty
         ? channelData.length
         : persistedChannelData.length;
-=======
-    final int numChannels = channelData.length;
->>>>>>> 7f305aa641e8c919b719f0e405e79f64a8d73166:lib/features/recording/widgets/eeg_plots.dart
     if (numChannels == 0) {
       return Center(
         child: Text(
@@ -49,26 +40,18 @@ class EegLineChart extends StatelessWidget {
       );
     }
 
-<<<<<<< HEAD:lib/widgets/eeg_plots.dart
-=======
     const mutedTextStyle = TextStyle(
       fontSize: 10,
       color: AppTheme.textSecondary,
     );
 
->>>>>>> 7f305aa641e8c919b719f0e405e79f64a8d73166:lib/features/recording/widgets/eeg_plots.dart
     final List<int> channelIndices =
         List<int>.generate(numChannels, (index) => index);
 
     const double channelStep = 3.0;
-<<<<<<< HEAD:lib/widgets/eeg_plots.dart
-    const double halfHeight = 1.2;
-    final double effectiveWindow = windowSeconds <= 0 ? 1.0 : windowSeconds;
-=======
     const double halfHeight = 0.7;
     final double effectiveWindow = windowSeconds <= 0 ? 1.0 : windowSeconds;
     final double maxX = effectiveWindow;
->>>>>>> 7f305aa641e8c919b719f0e405e79f64a8d73166:lib/features/recording/widgets/eeg_plots.dart
 
     final List<LineChartBarData> lineBarsData = [];
     final persistedColor = Colors.grey.shade400;
@@ -78,22 +61,24 @@ class EegLineChart extends StatelessWidget {
       final double centerY = order * channelStep;
       final double range = displayRange;
 
-<<<<<<< HEAD:lib/widgets/eeg_plots.dart
       final maxCurrentX = ch < channelData.length && channelData[ch].isNotEmpty
-          ? channelData[ch].map((p) => p.time).fold(0.0, (a, b) => a > b ? a : b)
+          ? channelData[ch]
+              .map((p) => p.time)
+              .fold(0.0, (a, b) => a > b ? a : b)
           : 0.0;
 
-      if (ch < persistedChannelData.length && persistedChannelData[ch].isNotEmpty) {
+      if (ch < persistedChannelData.length &&
+          persistedChannelData[ch].isNotEmpty) {
         final persistedSpots = persistedChannelData[ch]
             .where((p) => p.time > maxCurrentX && p.time <= effectiveWindow)
             .map((point) {
-              final norm = (point.amplitude / range).clamp(-1.0, 1.0);
-              return FlSpot(
-                point.time,
-                centerY + amplitudeScale * norm * halfHeight,
-              );
-            })
-            .toList();
+          final norm = (point.amplitude / range).clamp(-1.0, 1.0);
+          final x = point.time.clamp(0.0, effectiveWindow);
+          return FlSpot(
+            x,
+            centerY + amplitudeScale * norm * halfHeight,
+          );
+        }).toList();
         lineBarsData.add(
           LineChartBarData(
             spots: persistedSpots,
@@ -106,32 +91,23 @@ class EegLineChart extends StatelessWidget {
         );
       }
 
-      final currentSpots = ch < channelData.length && channelData[ch].isNotEmpty
-          ? channelData[ch]
-              .where((p) => p.time >= 0 && p.time <= effectiveWindow)
-              .map((point) {
-                final norm = (point.amplitude / range).clamp(-1.0, 1.0);
-                return FlSpot(
-                  point.time,
-                  centerY + amplitudeScale * norm * halfHeight,
-                );
-              })
-              .toList()
-          : <FlSpot>[];
-
-=======
-      final spots = channelData[ch].map((point) {
-        final norm = (point.amplitude / range).clamp(-1.0, 1.0);
-        final x = point.time.clamp(0.0, effectiveWindow);
-        return FlSpot(
-          x,
-          centerY + amplitudeScale * norm * halfHeight,
-        );
-      }).toList();
+      final currentSpots =
+          ch < channelData.length && channelData[ch].isNotEmpty
+              ? channelData[ch]
+                  .where((p) => p.time >= 0 && p.time <= effectiveWindow)
+                  .map((point) {
+                  final norm = (point.amplitude / range).clamp(-1.0, 1.0);
+                  final x = point.time.clamp(0.0, effectiveWindow);
+                  return FlSpot(
+                    x,
+                    centerY + amplitudeScale * norm * halfHeight,
+                  );
+                }).toList()
+              : <FlSpot>[];
 
       final channelColor =
           AppTheme.eegChannelColors[ch % AppTheme.eegChannelColors.length];
->>>>>>> 7f305aa641e8c919b719f0e405e79f64a8d73166:lib/features/recording/widgets/eeg_plots.dart
+
       lineBarsData.add(
         LineChartBarData(
           spots: currentSpots,
@@ -169,7 +145,8 @@ class EegLineChart extends StatelessWidget {
           titlesData: FlTitlesData(
             bottomTitles: AxisTitles(
               axisNameWidget: const Text('Время (с)',
-                  style: TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
+                  style:
+                      TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
               sideTitles: SideTitles(
                 showTitles: true,
                 reservedSize: 30,
@@ -180,7 +157,8 @@ class EegLineChart extends StatelessWidget {
             ),
             leftTitles: AxisTitles(
               axisNameWidget: const Text('Каналы',
-                  style: TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
+                  style:
+                      TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
               sideTitles: SideTitles(
                 showTitles: true,
                 reservedSize: 48,

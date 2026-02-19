@@ -63,13 +63,9 @@ extension DataFormatX on DataFormat {
     switch (this) {
       case DataFormat.int8:
         return 1;
-<<<<<<< HEAD:lib/utils/extension.dart
-      case DataFormat.eeg24BitVolt:
-=======
       case DataFormat.uint12Le:
         return 2;
       case DataFormat.int24Be:
->>>>>>> 7f305aa641e8c919b719f0e405e79f64a8d73166:lib/core/utils/format_extensions.dart
         return 3;
     }
   }
@@ -77,15 +73,10 @@ extension DataFormatX on DataFormat {
     switch (this) {
       case DataFormat.int8:
         return 128.0;
-<<<<<<< HEAD:lib/utils/extension.dart
-      case DataFormat.eeg24BitVolt:
-        return 128.0; // график всегда использует масштаб int8
-=======
       case DataFormat.uint12Le:
         return 4095.0;
       case DataFormat.int24Be:
         return 1.2; // volts, ±Vref
->>>>>>> 7f305aa641e8c919b719f0e405e79f64a8d73166:lib/core/utils/format_extensions.dart
     }
   }
   bool get outputsVolts => this == DataFormat.int24Be;
@@ -93,11 +84,6 @@ extension DataFormatX on DataFormat {
 
 enum DataFormat {
   int8,
-<<<<<<< HEAD:lib/utils/extension.dart
-  eeg24BitVolt,
-}
-=======
   uint12Le,
   int24Be,
 }
->>>>>>> 7f305aa641e8c919b719f0e405e79f64a8d73166:lib/core/utils/format_extensions.dart

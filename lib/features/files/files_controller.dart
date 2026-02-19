@@ -2,14 +2,7 @@ import 'dart:io';
 import 'package:get/get.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
-<<<<<<< HEAD:lib/controllers/files_controller.dart
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:ble_app/controllers/settings_controller.dart';
-import 'package:ble_app/core/recording_constants.dart';
-import 'package:ble_app/models/recording_models.dart';
-import 'package:ble_app/models/path_models.dart';
-import 'package:ble_app/utils/extension.dart';
-=======
 import 'package:ble_app/features/settings/settings_controller.dart';
 import 'package:ble_app/core/constants/recording_constants.dart';
 import 'package:ble_app/core/common/recording_models.dart';
@@ -23,7 +16,6 @@ class SessionPath {
   final String sessionDirPath;
   final String filename;
 }
->>>>>>> 7f305aa641e8c919b719f0e405e79f64a8d73166:lib/features/files/files_controller.dart
 
 class FilesController {
   const FilesController();

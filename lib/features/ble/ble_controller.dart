@@ -116,22 +116,8 @@ class BleController extends GetxController {
     selectedDataServiceUuid.value = null;
     selectedDataCharUuid.value = null;
   }
-<<<<<<< HEAD:lib/controllers/ble_controller.dart
-  BluetoothCharacteristic? get writableCharacteristic {
-    for (final service in services) {
-      for (final c in service.characteristics) {
-        if (c.properties.write || c.properties.writeWithoutResponse) {
-          return c;
-        }
-      }
-    }
-    return null;
-  }
 
   /// Command characteristic for EEG_Device (UUID fff2)
-=======
-
->>>>>>> 7f305aa641e8c919b719f0e405e79f64a8d73166:lib/features/ble/ble_controller.dart
   BluetoothCharacteristic? get commandCharacteristic {
     for (final service in services) {
       for (final c in service.characteristics) {
@@ -144,9 +130,6 @@ class BleController extends GetxController {
     return null;
   }
 
-<<<<<<< HEAD:lib/controllers/ble_controller.dart
-  /// Sends a command to the EEG device. Commands must end with ";"
-=======
   BluetoothCharacteristic? get writableCharacteristic {
     for (final service in services) {
       for (final c in service.characteristics) {
@@ -158,7 +141,6 @@ class BleController extends GetxController {
     return null;
   }
 
->>>>>>> 7f305aa641e8c919b719f0e405e79f64a8d73166:lib/features/ble/ble_controller.dart
   Future<bool> sendCommand(String command) async {
     final char = commandCharacteristic ?? writableCharacteristic;
     if (char == null) return false;
@@ -168,11 +150,6 @@ class BleController extends GetxController {
     try {
       var cmd = command.trim();
       if (!cmd.endsWith(';')) cmd = '$cmd;';
-<<<<<<< HEAD:lib/controllers/ble_controller.dart
-      await char.write(cmd.codeUnits);
-      return true;
-    } catch (_) {
-=======
       if (char.properties.write) {
         await char.write(cmd.codeUnits);
       } else if (char.properties.writeWithoutResponse) {
@@ -182,7 +159,6 @@ class BleController extends GetxController {
       }
       return true;
     } catch (ignored) {
->>>>>>> 7f305aa641e8c919b719f0e405e79f64a8d73166:lib/features/ble/ble_controller.dart
       return false;
     }
   }
@@ -208,26 +184,16 @@ class BleController extends GetxController {
     final writeChar = commandCharacteristic ?? writableCharacteristic;
     if (writeChar != null) {
       try {
-<<<<<<< HEAD:lib/controllers/ble_controller.dart
-        await writeChar.write('off;'.codeUnits);
-        await Future.delayed(const Duration(milliseconds: 200));
-      } catch (_) {}
-=======
         await writeChar.write(BleConstants.cmdOff.codeUnits);
         await Future.delayed(const Duration(milliseconds: 200));
       } catch (ignored) {}
->>>>>>> 7f305aa641e8c919b719f0e405e79f64a8d73166:lib/features/ble/ble_controller.dart
     }
 
     final characteristic = selectedDataCharacteristic;
     if (characteristic != null) {
       try {
         await characteristic.setNotifyValue(false);
-<<<<<<< HEAD:lib/controllers/ble_controller.dart
-      } catch (_) {}
-=======
       } catch (ignored) {}
->>>>>>> 7f305aa641e8c919b719f0e405e79f64a8d73166:lib/features/ble/ble_controller.dart
     }
 
     connectionState.value = BluetoothConnectionState.disconnecting;
