@@ -1,7 +1,20 @@
-## EEG Recording App
+# EEG Recording App
 
-Мобильное Flutter‑приложение для регистрации ЭЭГ‑сигналов с 8‑канальных BLE‑устройств, управления записями и интеграции с сервером полисомнографии для анализа сна. Поддерживает подключение по Bluetooth Low Energy, приём и визуализацию данных в реальном времени, запись в csv/txt, просмотр файлов и получение предсказаний стадий сна.
+Мобильное Flutter‑приложение для регистрации ЭЭГ‑сигналов с BLE‑устройств, управления записями и интеграции с сервисом полисомнографии для анализа сна. Поддерживает подключение по Bluetooth Low Energy, приём и визуализацию данных в реальном времени, запись в txt/csv, просмотр файлов и получение предсказаний стадий сна.
 
+<<<<<<< HEAD
+=======
+## Структура экранов приложения
+
+![Схема страниц приложения](assets/PageDiagram.png)
+
+Схема навигации и страницы: подключение к устройствам, запись, управление файлами и обработанными сессиями.
+
+## Демонстрация
+
+![Демонстрация приложения](assets/video.gif)
+
+>>>>>>> 7f305aa641e8c919b719f0e405e79f64a8d73166
 ## Основные возможности
 
 - **Подключение к BLE‑устройствам**
@@ -9,64 +22,55 @@
   - Отслеживание состояния подключения
 
 - **Запись ЭЭГ в реальном времени**
-  - Потоковая запись в csv/txt файлы с буферизацией
-  - Автоматическое разбиение по сессиям и датам
+  - Потоковая запись в txt/csv с буферизацией и ротацией по времени
+  - Поддержка форматов: int8, uint12Le, int24Be (8 каналов при получении, 1 канал при записи)
+  - Фильтр Notch 50 Гц (подавление сетевой частоты) для полисомнографии
+  - Foreground service для записи при свёрнутом экране
 
 - **Онлайн‑визуализация сигналов**
-  - Отображение сигналов в реальном времени
-  - Скользящее окно и регулировка масштаба амплитуды
-  - Фильтры и базовые преобразования сигналов
+  - Отображение сигналов в реальном времени (до 8 каналов)
+  - Скользящее окно (3/5/10 с) и регулировка масштаба амплитуды
 
 - **Работа с файлами**
   - Просмотр списка записей и директорий
-  - Детальная информация по файлам (дата, размер)
-  - Удаление и шаринг записей
-  - Просмотр содержимого csv/txt прямо в приложении
+  - Удаление файлов/папок с синхронизацией счётчика сессий
+  - Шаринг и просмотр содержимого txt
 
-- **Интеграция с сервисом полисомнографии**
-  - Загрузка файлов ЭЭГ на внешний сервер полисомнографии
-  - Получение списка файлов пациента и запуск предсказания
-  - Отображение статуса обработки и предсказаний по сессиям
-  - Просмотр гипнограммы и интервалов стадий сна
+- **Интеграция с полисомнографией**
+  - **FilesPage**: загрузка выбранных файлов на сервер (POST `/users/save_user_file`)
+  - **ProcessedFilesPage**: загрузка файлов сессии, автообработка предикта (POST `/users/save_predict_json`)
+  - **SessionDetailsPage**: гипнограмма (GET `/users/sleep_graph?index=N`), интервалы стадий сна
 
 - **Настройки**
-  - Основыне настройки мобильного приложения: папка для записей, разбиение файлов, формат преобразования данных ble-устройств(int8, int12)
+  - Папка для записей, интервал ротации, частота дискретизации (100/250/500 Гц), формат данных (int8, uint12Le, int24Be), число каналов, адрес сервера полисомнографии, а также кастомные команды на устройство
 
+<<<<<<< HEAD
 ## Архитектура данных
+=======
+## Требования для отправки в полисомнографию
 
-### Запись ЭЭГ
+Для корректного анализа данных модели необходимо соблюдать следующие условия:
+>>>>>>> 7f305aa641e8c919b719f0e405e79f64a8d73166
 
-```text
-EEG Device (ble)
-    ↓ 
-BleController (subscribe ble)
-    ↓ 
-EegParserService (bytes → eegSample, int8)
-    ↓
-CsvStreamWriter (append + period flush)
-    ↓ 
-File Storage (/Documents/<dd.MM.yyyy>/session_N/*.txt)
-```
+### Одноканальные записи
 
-### Обработка и анализ сна
+- **TXT‑файлы**: убедитесь, что данные содержат только **один канал**. Запись через приложение пишет одноканальные данные по умолчанию.
 
-```text
-txt files session
-    ↓
-UploadFile/Predict
-    ↓
-Backend Polysomnography (REST API)
-    ↓
-JSON с предсказаниями стадий сна + индекс session_N
-    ↓
-ProcessedSession (status, prediction, jsonIndex)
-    ↓
-FilesProcessedPage (UI)
-```
+### Параметры сигнала
 
+| Параметр | Значение |
+|----------|----------|
+| **Частота дискретизации** | 100 Гц |
+| **Фильтр подавления сетевой частоты** | 50 Гц (Notch‑фильтр) |
+
+<<<<<<< HEAD
+=======
+Рекомендуется задать частоту 100 Гц в настройках перед записью для TXT‑файлов. Фильтр 50 Гц применяется к данным при записи.
+
+>>>>>>> 7f305aa641e8c919b719f0e405e79f64a8d73166
 ## Установка и запуск
 
-1. Установите Flutter SDK (рекомендуется 3.10.7+)
+1. Установите Flutter SDK (рекомендуется 3.10+)
 2. Установите зависимости:
 
    ```bash
@@ -78,43 +82,69 @@ FilesProcessedPage (UI)
    ```bash
    flutter run
    ```
----
+
+Для интеграции с полисомнографией:
+- **URL сервера**: Настройки → Полисомнография → Адрес сервера. Укажите адрес API, например `http://192.168.0.174:8000`. При смене Wi‑Fi IP компьютера может измениться — узнайте его командой `ipconfig` (Windows) и обновите в настройках.
+- Дефолтный адрес задаётся в `lib/core/constants/polysomnography_constants.dart`.
+- Перед записью TXT для анализа установите частоту дискретизации **100 Гц** в настройках (Bluetooth → Частота дискретизации) 
 
 ## Структура проекта
 
 ```text
 lib/
-├── controllers/                    # управление состоянием
-│   ├── ble_controller.dart         # ble‑подключение и сканирование
-│   ├── recording_controller.dart   # управление записью данных и сессиями
-│   ├── settings_controller.dart    # настройки приложения
-│   └── files_controller.dart       # работа с файлами и директориями записей
+├── main.dart
+├── core/
+│   ├── constants/
+│   │   ├── ble_constants.dart
+│   │   ├── recording_constants.dart
+│   │   └── polysomnography_constants.dart
+│   ├── theme/
+│   │   └── app_theme.dart
+│   ├── utils/
+│   │   ├── format_extensions.dart   # DataFormat, DateTime.format, ...
+│   │   └── signal_filters.dart     # Notch50HzFilter
+│   └── common/
+│       ├── eeg_sample.dart
+│       └── recording_models.dart
 │
-├── services/                       # бизнес‑логика
-│   ├── csv_stream_service.dart     # потоковая запись в csv/txt
-│   ├── eeg_parser_service.dart     # парсинг ble‑байтов в выборки ЭЭГ
-│   └── polysomnography_service.dart# HTTP‑клиент для API полисомнографии
-│
-├── models/                         # модели данных
-│   ├── eeg_sample.dart             # модель сэмпла ЭЭГ
-│   ├── recording_models.dart       # описание файлов/директорий записей
-│   └── processed_session.dart      # информация об обработанных сессиях сна
-│
-├── views/                          # экраны приложения
-│   ├── connection_page.dart        # подключение к устройствам
-│   ├── recording_page.dart         # запись и визуализация сигналов
-│   ├── files_page.dart             # управление файлами записей
-│   ├── files_processed_page.dart   # список обработанных сессий сна
-│   ├── csv_view_page.dart          # просмотр содержимого csv/txt
-│   └── session_details_page.dart   # детали предсказаний и гипнограмма (statistics)
-│
-├── widgets/                        # переиспользуемые виджеты
-│   ├── eeg_plots.dart              # графики сигналов ЭЭГ
-│   ├── recording_status_card.dart  # карточка статуса записи
-│   └── connection_status.dart      # статус BLE‑подключения
-│
-└── core/                           # константы и конфигурация
-    ├── ble_constants.dart          # настройки BLE‑сервиса/характеристик
-    ├── recording_constants.dart    # константы записи и формата файлов
-    └── polysomnography_constants.dart # URL и параметры API полисомнографии
+└── features/
+    ├── ble/
+    │   ├── ble_controller.dart
+    │   ├── connection_page.dart
+    │   ├── device_details_page.dart
+    │   └── widgets/
+    │       ├── device_list.dart
+    │       └── characteristic_list.dart
+    │
+    ├── recording/
+    │   ├── recording_controller.dart
+    │   ├── recording_page.dart
+    │   ├── csv_stream_service.dart
+    │   ├── eeg_parser_service.dart
+    │   ├── eeg_foreground_service.dart
+    │   └── widgets/
+    │       ├── eeg_plots.dart
+    │       └── recording_status_card.dart
+    │
+    ├── files/
+    │   ├── files_controller.dart
+    │   ├── files_page.dart
+    │   ├── csv_view_page.dart
+    │   └── widgets/
+    │       └── files_selection_bar.dart
+    │
+    ├── polysomnography/
+    │   ├── polysomnography_controller.dart
+    │   ├── polysomnography_service.dart
+    │   ├── processed_files_page.dart
+    │   ├── session_details_page.dart
+    │   └── processed_session.dart
+    │
+    ├── settings/
+    │   ├── settings_controller.dart
+    │   └── settings_page.dart
+    │
+    └── navigation/
+        ├── navigation_controller.dart
+        └── main_navigation.dart
 ```
