@@ -45,7 +45,7 @@ This application is intended for:
 - Sliding window (3 / 5 / 10 seconds)
 - Adjustable amplitude scaling
 
-![EEG plots demo](assets/video_plots.MP4)
+![EEG plots demo](assets/video_plots.gif)
 
 ### File Management
 
