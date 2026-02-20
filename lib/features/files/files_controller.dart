@@ -46,7 +46,9 @@ class FilesController {
         subdirs.add(entity);
       } else if (entity is File) {
         final path = entity.path.toLowerCase();
-        if (!path.endsWith(RecordingConstants.recordingFileExtension)) continue;
+        final isRecordingFile = RecordingConstants.recordingFileExtensions
+            .any((ext) => path.endsWith(ext));
+        if (!isRecordingFile) continue;
         final stat = await entity.stat();
         files.add(RecordingFileInfo(
           file: entity,
@@ -191,8 +193,8 @@ class FilesController {
     final sessionFolderName = 'session_$sessionNumber';
     final sessionDirPath = joinPath(dateDirPath, sessionFolderName);
     await Directory(sessionDirPath).create(recursive: true);
-    final filename =
-        'session_$sessionNumber${RecordingConstants.recordingFileExtension}';
+    final ext = settingsController.recordingFileExtension.value;
+    final filename = 'session_$sessionNumber$ext';
     return SessionPath(sessionDirPath: sessionDirPath, filename: filename);
   }
 }

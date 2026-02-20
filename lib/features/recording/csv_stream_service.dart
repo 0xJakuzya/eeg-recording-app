@@ -15,6 +15,9 @@ class CsvStreamWriter {
   String? baseFilename;
   int channelCount;
   int sampleCounter = 0;
+  bool outputVolts = false;
+  String fileExtension;
+
   final List<String> buffer = [];
   bool outputVolts = false;
   final Duration rotationInterval;
@@ -25,6 +28,7 @@ class CsvStreamWriter {
     this.channelCount = 8,
     required this.rotationInterval,
     this.outputVolts = false,
+    this.fileExtension = '.txt',
   });
 
   Future<void> startRecording(String filename, {String? baseDirectory}) async {
@@ -53,7 +57,7 @@ class CsvStreamWriter {
 
     final fname = buildRotatedFilename(
       baseFilename ??
-          '${RecordingConstants.defaultRecordingBaseName}${RecordingConstants.recordingFileExtension}',
+          '${RecordingConstants.defaultRecordingBaseName}$fileExtension',
       baseTime,
       partIndex,
     );
@@ -74,7 +78,7 @@ class CsvStreamWriter {
       ext = originalName.substring(dotIndex);
     } else {
       base = originalName;
-      ext = RecordingConstants.recordingFileExtension;
+      ext = fileExtension;
     }
 
     final datePart = startedAt.format('dd.MM.yyyy');

@@ -559,8 +559,8 @@ class FilesPageState extends State<FilesPage> {
     try {
       for (var i = 0; i < files.length; i++) {
         final info = files[i];
-        final isTxt =
-            info.file.path.toLowerCase().endsWith('.txt');
+        final path = info.file.path.toLowerCase();
+        final isTxt = path.endsWith('.txt');
         await polysomnographyService.uploadPatientFile(
           file: info.file,
           patientId: result.patientId,

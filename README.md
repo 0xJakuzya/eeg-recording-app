@@ -16,7 +16,7 @@
 
 - **Запись ЭЭГ в реальном времени**
   - Потоковая запись в txt/csv с буферизацией и ротацией по времени
-  - Поддержка форматов: int8, uint12Le, int24Be (8 каналов при получении, 1 канал при записи)
+  - Поддержка форматов: int8, int24Be (8 каналов при получении)
   - Фильтр Notch 50 Гц (подавление сетевой частоты) для полисомнографии
   - Foreground service для записи при свёрнутом экране
 
@@ -35,7 +35,7 @@
   - **SessionDetailsPage**: гипнограмма (GET `/users/sleep_graph?index=N`), интервалы стадий сна
 
 - **Настройки**
-  - Папка для записей, интервал ротации, частота дискретизации (100/250/500 Гц), формат данных (int8, uint12Le, int24Be), число каналов, адрес сервера полисомнографии, а также кастомные команды на устройство
+  - Папка для записей, формат файла (TXT/CSV), количество каналов для записи (1–8), интервал ротации, частота дискретизации (100/250/500 Гц), формат данных (int8, int24Be), адрес сервера полисомнографии, а также кастомные команды на устройство
 
 ## Требования для отправки в полисомнографию
 
@@ -53,6 +53,43 @@
 | **Фильтр подавления сетевой частоты** | 50 Гц (Notch‑фильтр) |
 
 Рекомендуется задать частоту 100 Гц в настройках перед записью для TXT‑файлов. Фильтр 50 Гц применяется к данным при записи.
+
+## Архитектура данных
+
+### Запись ЭЭГ
+
+```text
+BLE Device (notify)
+    ↓
+BleController.selectedDataCharacteristic.lastValueStream
+    ↓
+RecordingController.onDataReceived(bytes)
+    ↓
+EegParserService.parseAllBytes() → List<EegSample> (int8/int24Be)
+    ↓
+Notch50HzFilter.process() — подавление 50 Гц
+    ↓
+CsvStreamWriter.writeSample() → buffer → flush при 100 строках
+    ↓
+File: dd.MM.yyyy/session_N/session_N_dd.MM.yyyy_HH-mm.txt
+```
+
+### Интеграция с полисомнографией
+
+```text
+txt/edf файлы (одноканальные, 100 Гц, фильтр 50 Гц)
+    ↓
+POST /users/save_user_file (patient_id, patient_name, sampling_frequency для .txt)
+    ↓
+POST /users/save_predict_json (patient_id, file_index, channel для .edf)
+    ↓
+PredictResult(prediction, jsonIndex)
+    ↓
+GET /users/sleep_graph?index=N → PNG гипнограмма
+    ↓
+SessionDetailsPage: Image + chips с интервалами стадий
+```
+
 ## Установка и запуск
 
 1. Установите Flutter SDK (рекомендуется 3.10+)

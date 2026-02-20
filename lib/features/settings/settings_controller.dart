@@ -13,6 +13,8 @@ class SettingsController extends GetxController {
   static const String keyRecordingDirectory =
       RecordingConstants.keyRecordingDirectory;
   static const String keyDataFormat = 'eeg_data_format';
+  static const String keyRecordingFileExtension = 'recording_file_extension';
+  static const String keyRecordingChannelCount = 'recording_channel_count';
   static const String keyRotationIntervalMinutes =
       RecordingConstants.keyRotationIntervalMinutes;
   static const String keyLastSessionNumber =
@@ -26,7 +28,9 @@ class SettingsController extends GetxController {
   RxInt rotationIntervalMinutes =
       RxInt(RecordingConstants.defaultRotationIntervalMinutes);
   RxInt lastSessionNumber = RxInt(0);
-  Rx<DataFormat> dataFormat = DataFormat.uint12Le.obs;
+  Rx<DataFormat> dataFormat = DataFormat.int8.obs;
+  Rx<String> recordingFileExtension = '.txt'.obs;
+  RxInt recordingChannelCount = RxInt(1);
   Rx<String?> polysomnographyBaseUrl = Rx<String?>(null);
 
   @override
@@ -34,6 +38,8 @@ class SettingsController extends GetxController {
     super.onInit();
     loadRecordingDirectory();
     loadDataFormat();
+    loadRecordingFileExtension();
+    loadRecordingChannelCount();
     loadRotationInterval();
     loadSamplingRate();
     loadLastSessionNumber();
@@ -126,7 +132,7 @@ class SettingsController extends GetxController {
     if (stored != null) {
       dataFormat.value = DataFormat.values.firstWhere(
         (f) => f.name == stored,
-        orElse: () => DataFormat.uint12Le,
+        orElse: () => DataFormat.int8,
       );
     }
   }
@@ -135,6 +141,36 @@ class SettingsController extends GetxController {
     dataFormat.value = format;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(keyDataFormat, format.name);
+  }
+
+  Future<void> loadRecordingFileExtension() async {
+    final prefs = await SharedPreferences.getInstance();
+    final stored = prefs.getString(keyRecordingFileExtension);
+    if (stored != null && (stored == '.txt' || stored == '.csv')) {
+      recordingFileExtension.value = stored;
+    }
+  }
+
+  Future<void> setRecordingFileExtension(String ext) async {
+    if (ext != '.txt' && ext != '.csv') return;
+    recordingFileExtension.value = ext;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(keyRecordingFileExtension, ext);
+  }
+
+  Future<void> loadRecordingChannelCount() async {
+    final prefs = await SharedPreferences.getInstance();
+    final value = prefs.getInt(keyRecordingChannelCount);
+    if (value != null && value >= 1 && value <= 8) {
+      recordingChannelCount.value = value;
+    }
+  }
+
+  Future<void> setRecordingChannelCount(int count) async {
+    final clamped = count.clamp(1, 8);
+    recordingChannelCount.value = clamped;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(keyRecordingChannelCount, clamped);
   }
 
   Future<void> loadSamplingRate() async {

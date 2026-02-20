@@ -32,6 +32,22 @@ class SettingsPage extends StatelessWidget {
           SettingsCard(
             children: [
               SettingsTile(
+                icon: Icons.insert_drive_file_outlined,
+                title: 'Формат файла',
+                subtitle: Obx(() {
+                  final ext = settings.recordingFileExtension.value;
+                  return Text(ext == '.csv' ? 'CSV' : 'TXT');
+                }),
+                onTap: () => showFileFormatSheet(context, settings),
+              ),
+              SettingsTile(
+                icon: Icons.tune,
+                title: 'Количество каналов для записи',
+                subtitle: Obx(() =>
+                    Text('${settings.recordingChannelCount.value} каналов')),
+                onTap: () => showRecordingChannelCountSheet(context, settings),
+              ),
+              SettingsTile(
                 icon: Icons.folder_outlined,
                 title: 'Папка для записей',
                 subtitle: Obx(() {
@@ -126,7 +142,6 @@ class SettingsPage extends StatelessWidget {
   String getDataFormatLabel(DataFormat f) {
     return switch (f) {
       DataFormat.int8 => 'int8 (−128..127)',
-      DataFormat.uint12Le => 'uint12 (0..4095)',
       DataFormat.int24Be => 'int24 BE (Volts)',
     };
   }
@@ -211,11 +226,36 @@ class SettingsPage extends StatelessWidget {
       title: 'Формат данных',
       items: [
         PickerItem(DataFormat.int8, 'int8 (−128..127)'),
-        PickerItem(DataFormat.uint12Le, 'uint12 (0..4095)'),
         PickerItem(DataFormat.int24Be, 'int24 BE (8 каналов)'),
       ],
     );
     if (selected != null) await settings.setDataFormat(selected);
+  }
+
+  Future<void> showFileFormatSheet(
+      BuildContext context, SettingsController settings) async {
+    final selected = await showPicker<String>(
+      context,
+      title: 'Формат файла',
+      items: [
+        PickerItem('.txt', 'TXT'),
+        PickerItem('.csv', 'CSV'),
+      ],
+    );
+    if (selected != null) await settings.setRecordingFileExtension(selected);
+  }
+
+  Future<void> showRecordingChannelCountSheet(
+      BuildContext context, SettingsController settings) async {
+    final selected = await showPicker<int>(
+      context,
+      title: 'Количество каналов для записи',
+      items: List.generate(
+        8,
+        (i) => PickerItem(i + 1, '${i + 1} каналов'),
+      ),
+    );
+    if (selected != null) await settings.setRecordingChannelCount(selected);
   }
 
   Future<T?> showPicker<T>(

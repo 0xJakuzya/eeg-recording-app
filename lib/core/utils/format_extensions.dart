@@ -63,8 +63,6 @@ extension DataFormatX on DataFormat {
     switch (this) {
       case DataFormat.int8:
         return 1;
-      case DataFormat.uint12Le:
-        return 2;
       case DataFormat.int24Be:
         return 3;
     }
@@ -73,8 +71,6 @@ extension DataFormatX on DataFormat {
     switch (this) {
       case DataFormat.int8:
         return 128.0;
-      case DataFormat.uint12Le:
-        return 4095.0;
       case DataFormat.int24Be:
         return 1.2; // volts, ±Vref
     }
@@ -84,6 +80,5 @@ extension DataFormatX on DataFormat {
 
 enum DataFormat {
   int8,
-  uint12Le,
   int24Be,
 }
