@@ -99,9 +99,9 @@ RecordingController.onDataReceived(bytes)
     ↓
 EegParserService.parseAllBytes() → List<EegSample> (int24Be)
     ↓
-Notch50HzFilter.process() — подавление 50 Гц
+Notch50HzFilter.process() 
     ↓
-CsvStreamWriter.writeSample() → buffer → flush при 100 строках
+CsvStreamWriter.writeSample() 
     ↓
 Файл: dd.MM.yyyy/session_N/session_N_dd.MM.yyyy_HH-mm.txt
 ```
@@ -111,15 +111,15 @@ CsvStreamWriter.writeSample() → buffer → flush при 100 строках
 ```
 TXT/EDF (1 канал, 100 Гц, фильтр 50 Гц)
     ↓
-POST /users/save_user_file (patient_id, patient_name, sampling_frequency для .txt)
+POST /users/save_user_file (patient_id, patient_name, sampling_frequency for .txt)
     ↓
-POST /users/save_predict_json (patient_id, file_index, channel для .edf)
+POST /users/save_predict_json (patient_id, file_index, channel for .edf)
     ↓
 PredictResult(prediction, jsonIndex)
     ↓
-GET /users/sleep_graph?index=N → PNG гипнограмма
+GET /users/sleep_graph?index=N → PNG hypnogramm
     ↓
-SessionDetailsPage: изображение + интервалы стадий
+SessionDetailsPage
 ```
 
 ## Installation & Setup
@@ -177,12 +177,12 @@ lib/
 │       └── recording_models.dart
 │
 └── features/
-    ├── ble/                             # BLE-подключение
-    ├── recording/                       # Запись и визуализация ЭЭГ
-    ├── files/                           # Управление файлами
-    ├── polysomnography/                 # Интеграция с сервисом полисомнографии
-    ├── settings/                        # Настройки приложения
-    └── navigation/                      # Навигация
+    ├── ble/                             # BLE-connection
+    ├── recording/                       # Recroding and vizualizartion EEG
+    ├── files/                           # Files Manage
+    ├── polysomnography/                 # Integration Polysomnography Server
+    ├── settings/                        # Settings: EEG, Server, BLE, Files Manager
+    └── navigation/                      # Navigation
 ```
 
 ## Dependencies
