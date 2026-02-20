@@ -1,73 +1,95 @@
 # EEG Recording App
 
-Мобильное Flutter-приложение создано для работы с полисомнографией — исследованиями сна. Позволяет регистрировать ЭЭГ-сигналы с BLE-устройств, управлять записями и интегрировать данные с сервисом полисомнографии для автоматического анализа стадий сна и построения гипнограмм.
+A mobile Flutter application designed for polysomnography — comprehensive sleep studies.  
+The app records EEG signals from BLE devices, manages recording sessions, and integrates with a polysomnography service for automatic sleep stage analysis and hypnogram generation.
 
-## О приложении
+## About the Application
 
-Приложение предназначено для полисомнографических исследований — комплексной диагностики сна, включающей регистрацию электроэнцефалограммы (ЭЭГ) во время ночного сна. Поддерживается:
+The application is built for clinical and research sleep diagnostics. It supports full-cycle EEG acquisition during overnight sleep studies, including signal processing and server-based sleep stage prediction.
 
-- Подключение к ЭЭГ-датчикам по Bluetooth Low Energy
-- Запись и визуализация данных в реальном времени
-- Сохранение записей в форматах TXT/CSV
-- Загрузка данных на сервер полисомнографии
-- Получение результатов анализа стадий сна (гипнограммы) и интервалов фаз (N1, N2, N3, REM, Wake)
+Supported features:
 
-## Основные возможности
+- Bluetooth Low Energy EEG device connection
+- Real-time EEG data streaming and visualization
+- Recording in TXT / CSV formats
+- Uploading recordings to a polysomnography server
+- Receiving sleep stage predictions (N1, N2, N3, REM, Wake)
+- Hypnogram visualization and stage interval display
 
-### Подключение к BLE-устройствам
-- Сканирование и подключение к EEG BLE-устройствам
-- Отслеживание состояния подключения в реальном времени
+This application is intended for:
 
-### Запись ЭЭГ
-- Потоковая запись в TXT/CSV с буферизацией и ротацией по времени
-- Поддержка формата int24Be (до 8 каналов)
-- **Notch-фильтр 50 Гц** — подавление сетевой частоты для полисомнографии
-- Foreground service — непрерывная запись при свёрнутом экране
+- Sleep laboratory environments
+- Clinical EEG data acquisition
+- Experimental sleep stage research
+- Automated hypnogram generation workflows
 
-### Визуализация сигналов
-- Онлайн-отображение до 8 каналов в реальном времени
-- Скользящее окно (3/5/10 с) и регулировка масштаба амплитуды
+## Core Features
 
-### Работа с файлами
-- Просмотр списка записей и директорий
-- Удаление файлов и папок с синхронизацией счётчика сессий
-- Шаринг и просмотр содержимого TXT
+### BLE Device Connection
 
-### Интеграция с полисомнографией
-- **FilesPage** — загрузка выбранных файлов (POST `/users/save_user_file`)
-- **ProcessedFilesPage** — загрузка сессий и автообработка предикта (POST `/users/save_predict_json`)
-- **SessionDetailsPage** — гипнограмма (GET `/users/sleep_graph?index=N`), интервалы стадий сна
+- Scanning and connecting to EEG BLE devices
+- Real-time connection state monitoring
+- Custom device command support
 
-### Настройки
-- Папка для записей, формат файла (TXT/CSV)
-- Количество каналов (1–8), интервал ротации
-- Частота дискретизации (100/250/500 Гц)
-- Формат данных (int24Be)
-- Адрес сервера полисомнографии
-- Кастомные команды на устройство
+### EEG Recording
 
-## Требования к данным для полисомнографии
+- Stream-based recording with buffering and time-based rotation
+- TXT / CSV file formats
+- int24Be format support (up to 8 channels)
+- **50 Hz Notch Filter** — power-line noise suppression for clinical accuracy
+- Foreground service — continuous recording when the app is minimized
 
-Для корректного анализа моделями на сервере необходимо соблюдать параметры:
+### Signal Visualization
 
-| Параметр | Значение |
-|----------|----------|
-| **Частота дискретизации** | 100 Гц |
-| **Фильтр подавления сетевой частоты** | 50 Гц (Notch) |
-| **Количество каналов (TXT)** | 1 канал |
+- Real-time display of up to 8 EEG channels
+- Sliding window (3 / 5 / 10 seconds)
+- Adjustable amplitude scaling
 
-Перед записью установите частоту **100 Гц** в настройках (Bluetooth → Частота дискретизации). Фильтр 50 Гц применяется при записи автоматически.
+### File Management
 
-## Структура экранов
+- Session and directory browsing
+- File and folder deletion with session counter synchronization
+- TXT preview and sharing support
+
+### Polysomnography Integration
+
+- **FilesPage** — upload selected recordings  
+  `POST /users/save_user_file`
+
+- **ProcessedFilesPage** — trigger prediction processing  
+  `POST /users/save_predict_json`
+
+- **SessionDetailsPage**
+  - Fetch hypnogram image  
+    `GET /users/sleep_graph?index=N`
+  - Display sleep stage intervals
+
+## Data Requirements for Polysomnography
+
+To ensure correct analysis by server-side models, the following parameters must be configured:
+
+| Parameter | Required Value |
+|------------|----------------|
+| **Sampling Frequency** | 100 Hz |
+| **Power-Line Filter** | 50 Hz Notch |
+| **Channels (TXT)** | 1 channel |
+
+Before recording:
+
+- Set sampling frequency to **100 Hz**
+- 50 Hz notch filter is applied automatically during recording
+
+## Screen Flow
 
 ![Схема страниц приложения](assets/PageDiagram.png)
 
-*Схема навигации: подключение к устройствам → запись → управление файлами → обработанные сессии.*
+Connection → Recording → File Management → Processed Sessions → Session Details
 
-## Архитектура данных
+The navigation follows a structured clinical workflow from device setup to sleep analysis review.
 
-### Поток записи ЭЭГ
+## Data Architecture
 
+### EEG Recording Pipeline
 ```
 BLE Device (notify)
     ↓
@@ -84,7 +106,7 @@ CsvStreamWriter.writeSample() → buffer → flush при 100 строках
 Файл: dd.MM.yyyy/session_N/session_N_dd.MM.yyyy_HH-mm.txt
 ```
 
-### Интеграция с полисомнографией
+### Polysomnography Integration Flow
 
 ```
 TXT/EDF (1 канал, 100 Гц, фильтр 50 Гц)
@@ -100,13 +122,14 @@ GET /users/sleep_graph?index=N → PNG гипнограмма
 SessionDetailsPage: изображение + интервалы стадий
 ```
 
-## Установка и запуск
+## Installation & Setup
 
-### Требования
+### Requirements
+
 - Flutter SDK 3.10+
 - Android 5.0+ / iOS 11+ (для BLE и записи)
 
-### Шаги
+### Installation
 
 1. Клонируйте репозиторий и перейдите в каталог:
    ```bash
@@ -123,15 +146,18 @@ SessionDetailsPage: изображение + интервалы стадий
    flutter run
    ```
 
-### Настройка полисомнографии
+## Polysomnography Server Configuration
 
-- **Настройки → Полисомнография → Адрес сервера**
-- Укажите URL API, например: `http://192.168.0.174:8000`
-- Дефолтный адрес: `lib/core/constants/polysomnography_constants.dart`
-- При смене Wi-Fi IP компьютера обновите адрес (`ipconfig` на Windows)
+1. Open:  
+   **Settings → Polysomnography → Server Address**
 
+2. Enter your API URL, for example: `http://192.168.0.174:8000/`
 
-## Структура проекта
+The default server address is defined in: `lib/core/constants/polysomnography_constants.dart`
+
+If your local network IP address changes, update the server address accordingly.
+
+## Project Structure
 
 ```
 lib/
@@ -159,13 +185,17 @@ lib/
     └── navigation/                      # Навигация
 ```
 
-## Зависимости
+## Dependencies
 
-| Пакет | Назначение |
-|-------|------------|
-| flutter_blue_plus | BLE-подключение |
-| fl_chart | Графики сигналов |
-| flutter_foreground_task | Запись в фоне |
-| dio, http | Запросы к API полисомнографии |
-| get | State management и навигация |
+| Package | Purpose |
+|----------|----------|
+| flutter_blue_plus | BLE connectivity |
+| fl_chart | Signal visualization |
+| flutter_foreground_task | Background recording |
+| dio | REST API communication |
+| http | Lightweight HTTP requests |
+| get | State management and navigation |
+
+
+
 
