@@ -5,6 +5,21 @@ import 'package:flutter/material.dart';
 import 'package:ble_app/core/theme/app_theme.dart';
 import 'package:ble_app/features/polysomnography/polysomnography_service.dart';
 
+// parses [start, end] interval to seconds; returns 0 if invalid
+double parseIntervalSeconds(List interval) {
+  if (interval.length < 2) return 0;
+  final start = (interval[0] is num
+          ? interval[0] as num
+          : num.tryParse(interval[0].toString()) ?? 0)
+      .toDouble();
+  final end = (interval[1] is num
+          ? interval[1] as num
+          : num.tryParse(interval[1].toString()) ?? 0)
+      .toDouble();
+  return end - start;
+}
+
+// sums interval durations per stage; keys are wake, n1, n2, n3, rem etc
 Map<String, double> computeStageDurations(Map<String, dynamic> prediction) {
   final result = <String, double>{};
   for (final entry in prediction.entries) {
@@ -12,15 +27,7 @@ Map<String, double> computeStageDurations(Map<String, dynamic> prediction) {
     if (entry.value is List) {
       for (final interval in entry.value as List) {
         if (interval is List && interval.length >= 2) {
-          final start = (interval[0] is num
-                  ? interval[0] as num
-                  : num.tryParse(interval[0].toString()) ?? 0)
-              .toDouble();
-          final end = (interval[1] is num
-                  ? interval[1] as num
-                  : num.tryParse(interval[1].toString()) ?? 0)
-              .toDouble();
-          total += end - start;
+          total += parseIntervalSeconds(interval);
         }
       }
     }
@@ -29,6 +36,7 @@ Map<String, double> computeStageDurations(Map<String, dynamic> prediction) {
   return result;
 }
 
+// pie chart from stage durations; shows percentage per stage
 class SleepStagesPieChart extends StatelessWidget {
   const SleepStagesPieChart({super.key, required this.prediction});
 
@@ -89,6 +97,7 @@ class SleepStagesPieChart extends StatelessWidget {
   }
 }
 
+// fetches hypnogram bitmap from api; caches future, FutureBuilder for loading
 class HypnogramImage extends StatefulWidget {
   const HypnogramImage({
     super.key,
@@ -110,6 +119,7 @@ class HypnogramImage extends StatefulWidget {
 class HypnogramImageState extends State<HypnogramImage> {
   late final Future<List<int>> imageLoadFuture;
 
+  // fetches image once in init; future reused by FutureBuilder
   @override
   void initState() {
     super.initState();
@@ -149,11 +159,13 @@ class HypnogramImageState extends State<HypnogramImage> {
   }
 }
 
+// error message display when hypnogram load fails
 class HypnogramErrorContent extends StatelessWidget {
   const HypnogramErrorContent({super.key, required this.message});
 
   final String message;
 
+  // centered column: title + message; max 5 lines for message
   @override
   Widget build(BuildContext context) {
     return Center(
@@ -181,6 +193,7 @@ class HypnogramErrorContent extends StatelessWidget {
   }
 }
 
+// card wrapper for hypnogram image with optional pie chart below
 class HypnogramCard extends StatelessWidget {
   const HypnogramCard({
     super.key,
@@ -193,6 +206,7 @@ class HypnogramCard extends StatelessWidget {
   final Widget child;
   final Widget? pieChartWidget;
 
+  // title, fixed-height child, optional divider and pie chart
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -240,6 +254,7 @@ class HypnogramCard extends StatelessWidget {
   }
 }
 
+// hypnogram + pie chart; handles missing prediction
 class SessionDetailsPage extends StatelessWidget {
   const SessionDetailsPage({
     super.key,
@@ -254,6 +269,7 @@ class SessionDetailsPage extends StatelessWidget {
   final int jsonIndex;
   final PolysomnographyApiService service;
 
+  // hypnogram only when prediction missing; full card with pie when present
   @override
   Widget build(BuildContext context) {
     final pred = prediction;

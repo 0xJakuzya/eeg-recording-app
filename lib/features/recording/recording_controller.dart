@@ -12,8 +12,7 @@ import 'package:ble_app/features/recording/eeg_foreground_service.dart';
 import 'package:ble_app/core/utils/format_extensions.dart';
 import 'package:ble_app/core/utils/signal_filters.dart';
 
-/// Controller for recording EEG data.
-/// Handles BLE data reception, parsing, CSV writing, and real-time visualization.
+// ble data → parser → csv + realtime buffer; manages foreground service and duration timer
 class RecordingController extends GetxController {
   final BleController bleController = Get.find<BleController>();
   final SettingsController settingsController = Get.find<SettingsController>();
@@ -43,6 +42,7 @@ class RecordingController extends GetxController {
     initServices();
   }
 
+  // rebuilds parser, csv writer, notch filters from settings; call before start
   void initServices() {
     final channels = settingsController.channelCount.value;
     final format = settingsController.dataFormat.value;
@@ -65,7 +65,7 @@ class RecordingController extends GetxController {
       format: format,
     );
     polysomnographyFilters =
-        List.generate(writeChannels, (_) => Notch50HzFilter());
+        List.generate(writeChannels, (index) => Notch50HzFilter());
   }
 
   @override
@@ -74,6 +74,7 @@ class RecordingController extends GetxController {
     super.onClose();
   }
 
+  // enables ble notify, starts csv, foreground service, duration timer
   Future<void> startRecording() async {
     initServices();
     final dataCharacteristic = bleController.selectedDataCharacteristic;
@@ -95,6 +96,7 @@ class RecordingController extends GetxController {
     startDurationTimer();
   }
 
+  // cancels ble subscription, stops csv/foreground, writes meta line
   Future<void> stopRecording() async {
     await dataSubscription?.cancel();
     dataSubscription = null;
@@ -109,6 +111,7 @@ class RecordingController extends GetxController {
     recordingDuration.value = Duration.zero;
   }
 
+  // parses raw bytes; appends to buffer (fifo capped), writes filtered to csv
   void onDataReceived(List<int> bytes) {
     packetsCountInLastSecond++;
     lastReceivedPacketLength = bytes.length;
@@ -124,6 +127,7 @@ class RecordingController extends GetxController {
     }
   }
 
+  // notch filter per channel; single-channel path when format != int24
   EegSample prepareSampleForRecording(EegSample rawSample) {
     final format = settingsController.dataFormat.value;
     final rawValue =
@@ -146,10 +150,11 @@ class RecordingController extends GetxController {
     );
   }
 
+  // periodic timer for duration display and packet rate log
   void startDurationTimer() {
     durationTimer = Timer.periodic(
       RecordingConstants.durationTimerInterval,
-      (_) {
+      (timer) {
         final start = recordingStartTime.value;
         if (start != null) {
           recordingDuration.value = DateTime.now().difference(start);

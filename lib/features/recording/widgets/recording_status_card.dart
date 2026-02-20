@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:ble_app/core/theme/app_theme.dart';
 
-/// Card showing recording status and current/last saved file path.
+// recording status card; file path shortened to last 3 path segments
 class RecordingStatusCard extends StatelessWidget {
   const RecordingStatusCard({
     super.key,
@@ -78,7 +78,7 @@ class RecordingStatusCard extends StatelessWidget {
   }
 }
 
-/// Pulsing record indicator when recording, static when not.
+// scale animation when recording, static stop icon when not
 class RecordingIndicator extends StatefulWidget {
   const RecordingIndicator({required this.isRecording});
 

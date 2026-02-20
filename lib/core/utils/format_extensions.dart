@@ -1,3 +1,4 @@
+// duration as hh:mm:ss string for recording display
 extension DurationHmsFormatX on Duration {
   String toHms() {
     final hours = inHours.toString().padLeft(2, '0');
@@ -7,6 +8,7 @@ extension DurationHmsFormatX on Duration {
   }
 }
 
+// duration as localized short format (e.g. "5м 30с")
 extension DurationExtension on Duration {
   String format() {
     final hours = inHours;
@@ -22,6 +24,7 @@ extension DurationExtension on Duration {
   }
 }
 
+// datetime format tokens: dd, MM, yyyy, HH, mm
 extension DateTimeExtension on DateTime {
   String format([String format = 'dd.MM.yyyy HH:mm']) {
     final dayStr = day.toString().padLeft(2, '0');
@@ -38,6 +41,7 @@ extension DateTimeExtension on DateTime {
   }
 }
 
+// byte count as human-readable string (B, KB, MB, GB)
 extension IntExtension on int {
   String formatBytes() {
     if (this < 1024) {
@@ -52,12 +56,14 @@ extension IntExtension on int {
   }
 }
 
+// double as hz suffix string for settings display
 extension DoubleHzFormatX on double {
   String toHz({int fractionDigits = 1}) {
     return '${toStringAsFixed(fractionDigits)} Гц';
   }
 }
 
+// bytes per channel, display range, outputs volt flag for parser/chart
 extension DataFormatX on DataFormat {
   int get bytesPerChannel {
     switch (this) {
@@ -74,6 +80,7 @@ extension DataFormatX on DataFormat {
   bool get outputsVolts => true;
 }
 
+// single format supported: int24 big-endian 8-channel
 enum DataFormat {
   int24Be,
 }

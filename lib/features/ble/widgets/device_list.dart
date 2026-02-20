@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:ble_app/core/theme/app_theme.dart';
 
-/// Card with device name, id, optional details button, and onTap.
+// tile with device name, id; visual state for connected
 class DeviceListTile extends StatelessWidget {
   const DeviceListTile({
     super.key,
@@ -17,6 +17,7 @@ class DeviceListTile extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback? onDetailsPressed;
 
+  // fallback to 'Неизвестное устройство' when platformName empty
   static String displayName(BluetoothDevice device) {
     final name = device.platformName.trim();
     return name.isEmpty ? 'Неизвестное устройство' : name;

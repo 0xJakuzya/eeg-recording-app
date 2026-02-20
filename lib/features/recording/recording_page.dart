@@ -11,7 +11,8 @@ import 'package:ble_app/features/recording/widgets/recording_status_card.dart';
 
 const Duration chartUpdateInterval = Duration(milliseconds: 50);
 
-/// Page for recording and visualizing EEG data in real time.
+// page responsible for live EEG recording and real-time chart display
+// handles recording flow, chart timer tied to recording state, subsampling from buffer
 class RecordingPage extends StatefulWidget {
   const RecordingPage({super.key});
 
@@ -19,6 +20,7 @@ class RecordingPage extends StatefulWidget {
   State<RecordingPage> createState() => RecordingPageState();
 }
 
+// holds chart data, window/amplitude controls; drives periodic chart redraw during recording
 class RecordingPageState extends State<RecordingPage> {
   final SettingsController settingsController = Get.find<SettingsController>();
   final RecordingController recordingController =
@@ -43,11 +45,12 @@ class RecordingPageState extends State<RecordingPage> {
     onRecordingStateChanged(recordingController.isRecording.value);
   }
 
+  // starts/stops chart timer when recording state changes
   void onRecordingStateChanged(bool recording) {
     chartUpdateTimer?.cancel();
     if (recording) {
       chartDataNotifier.value = buildChartData();
-      chartUpdateTimer = Timer.periodic(chartUpdateInterval, (_) {
+      chartUpdateTimer = Timer.periodic(chartUpdateInterval, (timer) {
         if (mounted && recordingController.isRecording.value) {
           chartDataNotifier.value = buildChartData();
         }
@@ -70,6 +73,25 @@ class RecordingPageState extends State<RecordingPage> {
       windowSeconds * RecordingConstants.eegSweepMmPerSec;
   double get amplitudeScale => amplitudeScales[currentAmplitudeIndex];
 
+  // returns subsample indices for visible window; linear spread when over maxPoints
+  List<int> computeSubsampleIndices(
+      int n, int minIdx, int visibleCount, int maxPoints) {
+    final indices = <int>[];
+    if (visibleCount <= maxPoints) {
+      for (int i = minIdx; i < n; i++) indices.add(i);
+    } else {
+      for (int i = 0; i < maxPoints; i++) {
+        final offset = (i * (visibleCount - 1) / (maxPoints - 1))
+            .round()
+            .clamp(0, visibleCount - 1);
+        indices.add(minIdx + offset);
+      }
+      if (indices.last != n - 1) indices[indices.length - 1] = n - 1;
+    }
+    return indices;
+  }
+
+  // subsamples buffer to maxPoints; maps time/amplitude per channel for chart
   List<List<EegDataPoint>> buildChartData() {
     final format = settingsController.dataFormat.value;
     final channelCount = format == DataFormat.int24Be
@@ -87,20 +109,8 @@ class RecordingPageState extends State<RecordingPage> {
         (windowSeconds / sampleIntervalSec).ceil().clamp(1, n);
     final minIdx = (n - windowSamples).clamp(0, n - 1);
     final visibleCount = n - minIdx;
-    final indices = <int>[];
-    if (visibleCount <= maxPoints) {
-      for (int i = minIdx; i < n; i++) {
-        indices.add(i);
-      }
-    } else {
-      for (int i = 0; i < maxPoints; i++) {
-        final offset = (i * (visibleCount - 1) / (maxPoints - 1))
-            .round()
-            .clamp(0, visibleCount - 1);
-        indices.add(minIdx + offset);
-      }
-      if (indices.last != n - 1) indices[indices.length - 1] = n - 1;
-    }
+    final indices =
+        computeSubsampleIndices(n, minIdx, visibleCount, maxPoints);
     return List.generate(channelCount, (ch) {
       return indices.map((srcIdx) {
         final time = (srcIdx - minIdx) * sampleIntervalSec;

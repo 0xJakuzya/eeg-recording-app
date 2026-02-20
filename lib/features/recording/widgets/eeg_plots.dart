@@ -2,17 +2,17 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:ble_app/core/theme/app_theme.dart';
 
-/// EEG line chart widget. Supports 1-8 channels.
+// chart point: time in seconds and amplitude in volts
 class EegDataPoint {
   final double time;
   final double amplitude;
   EegDataPoint({required this.time, required this.amplitude});
 }
 
+// multi-channel line chart; persisted data shown muted; stacked by channelStep
 class EegLineChart extends StatelessWidget {
   final List<List<EegDataPoint>> channelData;
-  /// Зафиксированный след (отображается блекло)
-  final List<List<EegDataPoint>> persistedChannelData;
+  final List<List<EegDataPoint>> persistedChannelData; // faded fixed trace
   final double windowSeconds;
   final double amplitudeScale;
   final double displayRange;
@@ -25,6 +25,26 @@ class EegLineChart extends StatelessWidget {
     this.amplitudeScale = 1.0,
     required this.displayRange,
   });
+
+  static List<FlSpot> mapPointsToLineSpots(
+    Iterable<EegDataPoint> points,
+    double centerY,
+    double range,
+    double effectiveWindow,
+    double amplitudeScale,
+  ) {
+    const halfHeight = 0.7;
+    return points
+        .map((point) {
+          final norm = (point.amplitude / range).clamp(-1.0, 1.0);
+          final x = point.time.clamp(0.0, effectiveWindow);
+          return FlSpot(
+            x,
+            centerY + amplitudeScale * norm * halfHeight,
+          );
+        })
+        .toList();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -69,16 +89,15 @@ class EegLineChart extends StatelessWidget {
 
       if (ch < persistedChannelData.length &&
           persistedChannelData[ch].isNotEmpty) {
-        final persistedSpots = persistedChannelData[ch]
-            .where((p) => p.time > maxCurrentX && p.time <= effectiveWindow)
-            .map((point) {
-          final norm = (point.amplitude / range).clamp(-1.0, 1.0);
-          final x = point.time.clamp(0.0, effectiveWindow);
-          return FlSpot(
-            x,
-            centerY + amplitudeScale * norm * halfHeight,
-          );
-        }).toList();
+        final filtered = persistedChannelData[ch]
+            .where((p) => p.time > maxCurrentX && p.time <= effectiveWindow);
+        final persistedSpots = mapPointsToLineSpots(
+          filtered,
+          centerY,
+          range,
+          effectiveWindow,
+          amplitudeScale,
+        );
         lineBarsData.add(
           LineChartBarData(
             spots: persistedSpots,
@@ -91,19 +110,17 @@ class EegLineChart extends StatelessWidget {
         );
       }
 
-      final currentSpots =
-          ch < channelData.length && channelData[ch].isNotEmpty
-              ? channelData[ch]
-                  .where((p) => p.time >= 0 && p.time <= effectiveWindow)
-                  .map((point) {
-                  final norm = (point.amplitude / range).clamp(-1.0, 1.0);
-                  final x = point.time.clamp(0.0, effectiveWindow);
-                  return FlSpot(
-                    x,
-                    centerY + amplitudeScale * norm * halfHeight,
-                  );
-                }).toList()
-              : <FlSpot>[];
+      final currentPoints = ch < channelData.length && channelData[ch].isNotEmpty
+          ? channelData[ch]
+              .where((p) => p.time >= 0 && p.time <= effectiveWindow)
+          : <EegDataPoint>[];
+      final currentSpots = mapPointsToLineSpots(
+        currentPoints,
+        centerY,
+        range,
+        effectiveWindow,
+        amplitudeScale,
+      );
 
       final channelColor =
           AppTheme.eegChannelColors[ch % AppTheme.eegChannelColors.length];
@@ -184,9 +201,9 @@ class EegLineChart extends StatelessWidget {
           ),
           gridData: FlGridData(
             show: true,
-            getDrawingHorizontalLine: (_) =>
+            getDrawingHorizontalLine: (value) =>
                 FlLine(color: AppTheme.gridLine, strokeWidth: 0.5),
-            getDrawingVerticalLine: (_) =>
+            getDrawingVerticalLine: (value) =>
                 FlLine(color: AppTheme.gridLine, strokeWidth: 0.5),
           ),
           borderData: FlBorderData(

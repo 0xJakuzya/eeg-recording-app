@@ -4,16 +4,14 @@ import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:ble_app/features/ble/ble_controller.dart';
 import 'package:ble_app/features/ble/widgets/characteristic_list.dart';
 
-/// Page displaying BLE device services and characteristics.
+// shows device services and characteristics; expansion tiles per service
 class DeviceDetailsPage extends StatelessWidget {
   const DeviceDetailsPage({super.key, required this.device});
-
   final BluetoothDevice device;
 
   @override
   Widget build(BuildContext context) {
     final controller = Get.find<BleController>();
-
     return Scaffold(
       appBar: AppBar(
         title: Text(

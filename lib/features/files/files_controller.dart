@@ -8,6 +8,7 @@ import 'package:ble_app/core/constants/recording_constants.dart';
 import 'package:ble_app/core/common/recording_models.dart';
 import 'package:ble_app/core/utils/format_extensions.dart';
 
+// session dir path and filename for new recording; from getNextSessionPath
 class SessionPath {
   const SessionPath({
     required this.sessionDirPath,
@@ -17,11 +18,13 @@ class SessionPath {
   final String filename;
 }
 
+// browse recordings dir; date (dd.mm.yyyy) and session_N folders; share, delete, polysomnography
 class FilesController {
   const FilesController();
 
   SettingsController get settingsController => Get.find<SettingsController>();
 
+  // custom path from settings or app documents dir
   Future<Directory> get recordingsDirectory async {
     final customPath = settingsController.recordingDirectory.value;
     return (customPath != null && customPath.isNotEmpty)
@@ -29,18 +32,20 @@ class FilesController {
         : getApplicationDocumentsDirectory();
   }
 
+  // list subdirs and recording files; root shows dd.mm.yyyy only; session_N sorted numerically
   Future<RecordingDirectoryContent> listDirectory({Directory? directory}) async {
     final root = await recordingsDirectory;
     final dir = directory ?? root;
     final isRoot = dir.path == root.path;
-
+    // at root, only show dd.mm.yyyy folders; session_N inside date folders
     final subdirs = <Directory>[];
     final files = <RecordingFileInfo>[];
 
     await for (final entity in dir.list(recursive: false, followLinks: false)) {
       if (entity is Directory) {
         final name = entity.path.split(Platform.pathSeparator).last;
-        if (isRoot && !RegExp(r'^\d{2}\.\d{2}\.\d{4}$').hasMatch(name)) {
+        // root: only dd.mm.yyyy folders
+    if (isRoot && !RegExp(r'^\d{2}\.\d{2}\.\d{4}$').hasMatch(name)) {
           continue;
         }
         subdirs.add(entity);
@@ -80,15 +85,18 @@ class FilesController {
     );
   }
 
+  // convenience: files from root directory only
   Future<List<RecordingFileInfo>> listRecordingFiles() async =>
       (await listDirectory()).files;
 
   String fileName(File file) => file.path.split(Platform.pathSeparator).last;
 
+  // delete single file if exists
   Future<void> deleteFile(RecordingFileInfo info) async {
     if (await info.file.exists()) await info.file.delete();
   }
 
+  // recursive delete; date folder → reset counter; session folder → recalculate from disk
   Future<void> deleteDirectory(Directory dir) async {
     if (!await dir.exists()) return;
     
@@ -119,8 +127,9 @@ class FilesController {
     await syncSessionCounter();
   }
 
-  static final sessionFolderPattern = RegExp(r'^session_(\d+)$');
+  static final sessionFolderPattern = RegExp(r'^session_(\d+)$'); // matches session_N
 
+  // scan all dd.mm.yyyy/session_N; return max session index
   Future<int> getMaxExistingSessionNumber() async {
     int maxSession = 0;
     final root = await recordingsDirectory;
@@ -144,17 +153,20 @@ class FilesController {
     return maxSession;
   }
 
+  // align persisted counter with max existing session on disk
   Future<void> syncSessionCounter() async {
     final maxSession = await getMaxExistingSessionNumber();
     await settingsController.setLastSessionNumber(maxSession);
   }
 
+  // share single file via system sheet
   Future<void> shareFile(RecordingFileInfo info) async {
     if (!await info.file.exists()) return;
     final xFile = XFile(info.file.path);
     await Share.shareXFiles([xFile], text: 'EEG запись: ${info.name}');
   }
 
+  // share multiple files via system sheet
   Future<void> shareFiles(List<RecordingFileInfo> files) async {
     final existing = <XFile>[];
     for (final info in files) {
@@ -169,6 +181,7 @@ class FilesController {
     );
   }
 
+  // custom dir from settings or app documents path
   Future<String> resolveRootDir() async {
     final customDir = settingsController.recordingDirectory.value;
     if (customDir != null && customDir.isNotEmpty) return customDir;
@@ -176,12 +189,13 @@ class FilesController {
     return appDir.path;
   }
 
+  // platform-aware path join
   String joinPath(String parent, String child) =>
       parent.endsWith(Platform.pathSeparator)
           ? '$parent$child'
           : '$parent${Platform.pathSeparator}$child';
 
-  /// Возвращает путь для новой сессии записи. Каждый вызов — новая папка session_N.
+  // new session_N folder per call; date subfolder; increments counter
   Future<SessionPath> getNextSessionPath() async {
     final now = DateTime.now();
     final rootDir = await resolveRootDir();

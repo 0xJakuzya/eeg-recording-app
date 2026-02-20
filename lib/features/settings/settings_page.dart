@@ -9,6 +9,7 @@ import 'package:ble_app/core/theme/app_theme.dart';
 import 'package:ble_app/core/constants/polysomnography_constants.dart';
 import 'package:ble_app/core/utils/format_extensions.dart';
 
+// recording, ble, polysomnography settings; bottom sheets for pickers
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
 
@@ -173,6 +174,35 @@ class SettingsPage extends StatelessWidget {
     if (selected != null) await settings.setRotationIntervalMinutes(selected);
   }
 
+  static Future<void> handlePolysomnographyCheck(
+      BuildContext ctx, String url) async {
+    if (url.isEmpty) return;
+    final svc = PolysomnographyApiService(baseUrl: url);
+    final err = await svc.checkConnection(url);
+    if (ctx.mounted) {
+      ScaffoldMessenger.of(ctx).showSnackBar(
+        SnackBar(
+          content: Text(err == null ? 'Подключение успешно' : 'Ошибка: $err'),
+          backgroundColor: err == null ? Colors.green : null,
+        ),
+      );
+    }
+  }
+
+  static Future<void> handlePolysomnographyReset(
+      BuildContext ctx, SettingsController settings) async {
+    await settings.setPolysomnographyBaseUrl(null);
+    if (ctx.mounted) Navigator.pop(ctx);
+  }
+
+  static Future<void> handlePolysomnographySave(
+      BuildContext ctx,
+      TextEditingController textController,
+      SettingsController settings) async {
+    await settings.setPolysomnographyBaseUrl(textController.text);
+    if (ctx.mounted) Navigator.pop(ctx);
+  }
+
   Future<void> showPolysomnographyUrlDialog(
       BuildContext context, SettingsController settings) async {
     final controller = TextEditingController(
@@ -212,42 +242,23 @@ class SettingsPage extends StatelessWidget {
             child: const Text('Отмена'),
           ),
           TextButton(
-            onPressed: () async {
-              final url = controller.text.trim();
-              if (url.isEmpty) return;
-              final svc = PolysomnographyApiService(baseUrl: url);
-              final err = await svc.checkConnection(url);
-              if (ctx.mounted) {
-                ScaffoldMessenger.of(ctx).showSnackBar(
-                  SnackBar(
-                    content: Text(err == null
-                        ? 'Подключение успешно'
-                        : 'Ошибка: $err'),
-                    backgroundColor: err == null ? Colors.green : null,
-                  ),
-                );
-              }
-            },
+            onPressed: () => handlePolysomnographyCheck(ctx, controller.text),
             child: const Text('Проверить'),
           ),
           TextButton(
-            onPressed: () async {
-              await settings.setPolysomnographyBaseUrl(null);
-              if (ctx.mounted) Navigator.pop(ctx);
-            },
+            onPressed: () => handlePolysomnographyReset(ctx, settings),
             child: const Text('Сбросить'),
           ),
           FilledButton(
-            onPressed: () async {
-              await settings.setPolysomnographyBaseUrl(controller.text);
-              if (ctx.mounted) Navigator.pop(ctx);
-            },
+            onPressed: () =>
+                handlePolysomnographySave(ctx, controller, settings),
             child: const Text('Сохранить'),
           ),
         ],
       ),
     );
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    // dispose controller after dialog closes; post-frame avoids use during build
+    WidgetsBinding.instance.addPostFrameCallback((timestamp) {
       controller.dispose();
     });
   }
@@ -290,6 +301,7 @@ class SettingsPage extends StatelessWidget {
     if (selected != null) await settings.setRecordingChannelCount(selected);
   }
 
+  // modal bottom sheet for single-choice picker
   Future<T?> showPicker<T>(
     BuildContext context, {
     required String title,
@@ -356,12 +368,14 @@ class SettingsPage extends StatelessWidget {
   }
 }
 
+// value/label pair for bottom sheet picker
 class PickerItem<T> {
   final T value;
   final String label;
   PickerItem(this.value, this.label);
 }
 
+// section title in settings list
 class SettingsSectionHeader extends StatelessWidget {
   const SettingsSectionHeader({super.key, required this.title});
   final String title;
@@ -382,6 +396,7 @@ class SettingsSectionHeader extends StatelessWidget {
   }
 }
 
+// card container with dividers between children
 class SettingsCard extends StatelessWidget {
   const SettingsCard({super.key, required this.children});
   final List<Widget> children;
@@ -406,6 +421,7 @@ class SettingsCard extends StatelessWidget {
   }
 }
 
+// single row: icon, title, subtitle, optional tap
 class SettingsTile extends StatelessWidget {
   const SettingsTile({
     super.key,
@@ -449,6 +465,7 @@ class SettingsTile extends StatelessWidget {
   }
 }
 
+// ble commands when connected; rate, ping, start/stop transmission
 class DeviceCommandsTile extends StatelessWidget {
   const DeviceCommandsTile({
     super.key,
@@ -564,6 +581,7 @@ class DeviceCommandsTile extends StatelessWidget {
   }
 }
 
+// tappable chip for device command; optional color override
 class CommandChip extends StatelessWidget {
   const CommandChip({
     super.key,

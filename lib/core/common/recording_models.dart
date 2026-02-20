@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'package:ble_app/core/utils/format_extensions.dart';
 
-/// Metadata from CSV footer: # duration_seconds=X;sample_count=Y;effective_hz=Z
+// parsed from csv footer: # duration_seconds=X;sample_count=Y;effective_hz=Z
 class CsvRecordingMetadata {
   final double durationSeconds;
   final int sampleCount;
@@ -13,6 +13,7 @@ class CsvRecordingMetadata {
     required this.effectiveHz,
   });
 
+  // scan file from end for # duration_seconds=... line; parse key=value pairs
   static Future<CsvRecordingMetadata?> fromFile(File file) async {
     if (!await file.exists()) return null;
     try {
@@ -49,6 +50,7 @@ class CsvRecordingMetadata {
   }
 }
 
+// file metadata for directory browser; provides formatted date/size strings
 class RecordingFileInfo {
   final File file;
   final String name;
@@ -66,6 +68,7 @@ class RecordingFileInfo {
   String get formattedSize => sizeBytes.formatBytes();
 }
 
+// directory content: folder reference, subdirs and files for browser ui
 class RecordingDirectoryContent {
   final Directory directory;
   final List<Directory> subdirectories;

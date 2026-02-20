@@ -7,11 +7,14 @@ import 'package:ble_app/features/settings/settings_controller.dart';
 import 'package:ble_app/core/theme/app_theme.dart';
 import 'package:ble_app/core/constants/polysomnography_constants.dart';
 
+// global key for external access to page state (e.g. load patient from upload flow)
 final GlobalKey<ProcessedFilesPageState> processedFilesPageKey =
     GlobalKey<ProcessedFilesPageState>();
 
+// per-file processing state for polysomnography prediction
 enum FileProcessStatus { pending, inProgress, done, failed }
 
+// holds result, sleep graph index and error for a single file
 class FileProcessState {
   const FileProcessState({
     required this.status,
@@ -25,6 +28,8 @@ class FileProcessState {
   final String? error;
 }
 
+// page for browsing and processing patient files via polysomnography api
+// fetches file list, runs save_predict_json per file, caches results per patient
 class ProcessedFilesPage extends StatefulWidget {
   const ProcessedFilesPage({super.key});
 
@@ -35,8 +40,9 @@ class ProcessedFilesPage extends StatefulWidget {
 class ProcessedFilesPageState extends State<ProcessedFilesPage>
     with AutomaticKeepAliveClientMixin {
   @override
-  bool get wantKeepAlive => true;
+  bool get wantKeepAlive => true; // keep state when switching tabs; avoids reload
 
+  // lazy service instance; base url from settings at call time
   PolysomnographyApiService get polysomnographyService =>
       PolysomnographyApiService(
         baseUrlGetter: () =>
@@ -50,6 +56,7 @@ class ProcessedFilesPageState extends State<ProcessedFilesPage>
   int? lastUploadedPatientId;
   int? currentPatientId;
   final Map<int, FileProcessState> fileStates = {};
+  // cache completed/failed states per patient so switching back restores them
   final Map<int, Map<int, FileProcessState>> patientCache = {};
 
   void loadPatientById(int? patientId) {
@@ -59,48 +66,28 @@ class ProcessedFilesPageState extends State<ProcessedFilesPage>
     }
   }
 
+  // called from upload flow; loads patient and updates input
   void setLastUploadedPatientId(int id) {
     lastUploadedPatientId = id;
     loadPatientById(id);
   }
 
+  // validates id, caches current state, fetches list, restores cache, processes all
   Future<void> loadPatientFiles() async {
-    final raw = patientIdController.text.trim();
-    final patientId = int.tryParse(raw);
+    final patientId = parsePatientId(patientIdController.text.trim());
     if (patientId == null) {
-      setState(() {
-        files = [];
-        fileStates.clear();
-        loadError = 'Введите корректный ID пациента';
-      });
+      setErrorState('Введите корректный ID пациента');
       return;
     }
 
-    setState(() {
-      isLoading = true;
-      loadError = null;
-      if (currentPatientId != null && fileStates.isNotEmpty) {
-        patientCache[currentPatientId!] = Map.from(fileStates);
-      }
-      fileStates.clear();
-    });
+    cacheCurrentPatientState();
+    setLoadingState();
 
     try {
       final list = await polysomnographyService.getPatientFilesList(patientId);
       if (!mounted) return;
 
-      final cached = patientCache[patientId];
-      for (final f in list) {
-        final existing = cached?[f.index];
-        if (existing != null &&
-            (existing.status == FileProcessStatus.done ||
-                existing.status == FileProcessStatus.failed)) {
-          fileStates[f.index] = existing;
-        } else {
-          fileStates[f.index] =
-              const FileProcessState(status: FileProcessStatus.pending);
-        }
-      }
+      restoreFileStatesFromCache(list, patientId);
 
       setState(() {
         files = list;
@@ -112,23 +99,65 @@ class ProcessedFilesPageState extends State<ProcessedFilesPage>
       processAllFiles(patientId);
     } catch (e) {
       if (!mounted) return;
-      setState(() {
-        files = [];
-        isLoading = false;
-        loadError = 'Ошибка: $e';
-      });
+      setErrorState('Ошибка: $e');
     }
   }
 
+  int? parsePatientId(String raw) => int.tryParse(raw);
+
+  // clears files and fileStates; sets loadError
+  void setErrorState(String message) {
+    setState(() {
+      files = [];
+      fileStates.clear();
+      isLoading = false;
+      loadError = message;
+    });
+  }
+
+  // clears file states before fresh load
+  void setLoadingState() {
+    setState(() {
+      isLoading = true;
+      loadError = null;
+      fileStates.clear();
+    });
+  }
+
+  // saves fileStates to patientCache before switching patient
+  void cacheCurrentPatientState() {
+    if (currentPatientId != null && fileStates.isNotEmpty) {
+      patientCache[currentPatientId!] = Map.from(fileStates);
+    }
+  }
+
+  // restores done/failed from cache; pending for uncached or new files
+  void restoreFileStatesFromCache(List<PatientFileInfo> list, int patientId) {
+    final cached = patientCache[patientId];
+    for (final f in list) {
+      final existing = cached?[f.index];
+      if (isCachedResult(existing)) {
+        fileStates[f.index] = existing!;
+      } else {
+        fileStates[f.index] =
+            const FileProcessState(status: FileProcessStatus.pending);
+      }
+    }
+  }
+
+  // true if state is done or failed (restorable from cache)
+  bool isCachedResult(FileProcessState? state) =>
+      state != null &&
+      (state.status == FileProcessStatus.done ||
+          state.status == FileProcessStatus.failed);
+
+  // processes each file sequentially; skips already done
   Future<void> processAllFiles(int patientId) async {
     for (final file in files) {
       if (!mounted) return;
       if (fileStates[file.index]?.status == FileProcessStatus.done) continue;
 
-      setState(() {
-        fileStates[file.index] =
-            const FileProcessState(status: FileProcessStatus.inProgress);
-      });
+      markFileInProgress(file.index);
 
       await runFilePrediction(
         patientId: patientId,
@@ -138,14 +167,20 @@ class ProcessedFilesPageState extends State<ProcessedFilesPage>
     }
   }
 
-  Future<void> retryFile(PatientFileInfo file) async {
-    final patientId = int.tryParse(patientIdController.text.trim());
-    if (patientId == null) return;
-
+  // updates file state to inProgress; triggers setState
+  void markFileInProgress(int fileIndex) {
     setState(() {
-      fileStates[file.index] =
+      fileStates[fileIndex] =
           const FileProcessState(status: FileProcessStatus.inProgress);
     });
+  }
+
+  // re-runs prediction for failed file; shows snackbar on error
+  Future<void> retryFile(PatientFileInfo file) async {
+    final patientId = parsePatientId(patientIdController.text.trim());
+    if (patientId == null) return;
+
+    markFileInProgress(file.index);
 
     await runFilePrediction(
       patientId: patientId,
@@ -154,6 +189,7 @@ class ProcessedFilesPageState extends State<ProcessedFilesPage>
     );
   }
 
+  // calls save_predict_json; updates state and cache; optional snackbar on error
   Future<void> runFilePrediction({
     required int patientId,
     required PatientFileInfo file,
@@ -168,41 +204,62 @@ class ProcessedFilesPageState extends State<ProcessedFilesPage>
       );
 
       if (!mounted) return;
-      final controller = Get.find<PolysomnographyController>();
-      final sleepGraphIndex = controller.takeNextSleepGraphIndex();
-
-      final state = FileProcessState(
-        status: FileProcessStatus.done,
-        result: result,
-        sleepGraphIndex: sleepGraphIndex,
-      );
-      setState(() {
-        fileStates[file.index] = state;
-        patientCache[patientId] ??= {};
-        patientCache[patientId]![file.index] = state;
-      });
+      applySuccessState(patientId, file.index, result);
     } catch (e) {
       if (!mounted) return;
-      final state = FileProcessState(
-        status: FileProcessStatus.failed,
-        error: e.toString(),
-      );
-      setState(() {
-        fileStates[file.index] = state;
-        patientCache[patientId] ??= {};
-        patientCache[patientId]![file.index] = state;
-      });
+      applyFailureState(patientId, file.index, e.toString());
       if (showErrorSnackBar) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Ошибка: $e'),
-            duration: const Duration(seconds: 3),
-          ),
-        );
+        this.showErrorSnackBar('Ошибка: $e');
       }
     }
   }
 
+  // assigns sleep graph index from controller; updates fileStates and patientCache
+  void applySuccessState(int patientId, int fileIndex, PredictResult result) {
+    final controller = Get.find<PolysomnographyController>();
+    final sleepGraphIndex = controller.takeNextSleepGraphIndex();
+
+    final state = FileProcessState(
+      status: FileProcessStatus.done,
+      result: result,
+      sleepGraphIndex: sleepGraphIndex,
+    );
+    updateFileAndCacheState(patientId, fileIndex, state);
+  }
+
+  // stores error in state; updates both fileStates and patientCache
+  void applyFailureState(int patientId, int fileIndex, String error) {
+    final state = FileProcessState(
+      status: FileProcessStatus.failed,
+      error: error,
+    );
+    updateFileAndCacheState(patientId, fileIndex, state);
+  }
+
+  // atomic update to fileStates and patientCache; triggers rebuild
+  void updateFileAndCacheState(
+    int patientId,
+    int fileIndex,
+    FileProcessState state,
+  ) {
+    setState(() {
+      fileStates[fileIndex] = state;
+      patientCache[patientId] ??= {};
+      patientCache[patientId]![fileIndex] = state;
+    });
+  }
+
+  // displays error in snackbar; 3 sec duration
+  void showErrorSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        duration: const Duration(seconds: 3),
+      ),
+    );
+  }
+
+  // opens details when done; triggers retry when failed
   Future<void> onFileTap(PatientFileInfo file) async {
     final state = fileStates[file.index];
 
@@ -216,6 +273,7 @@ class ProcessedFilesPageState extends State<ProcessedFilesPage>
     }
   }
 
+  // navigates to session details with prediction and hypnogram index
   Future<void> openDetails(
       PatientFileInfo file, FileProcessState state) async {
     final result = state.result!;
@@ -225,7 +283,7 @@ class ProcessedFilesPageState extends State<ProcessedFilesPage>
     await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => SessionDetailsPage(
+        builder: (context) => SessionDetailsPage(
           fileName: file.name,
           prediction: result.prediction,
           jsonIndex: sleepGraphIndex,
@@ -235,6 +293,7 @@ class ProcessedFilesPageState extends State<ProcessedFilesPage>
     );
   }
 
+  // called when returning from upload flow; reloads patient if one was just uploaded
   void refreshSessions() {
     final polysomnographyController = Get.find<PolysomnographyController>();
     final pendingId = polysomnographyController.lastUploadedPatientId.value;
@@ -244,6 +303,7 @@ class ProcessedFilesPageState extends State<ProcessedFilesPage>
     }
   }
 
+  // localized label per status
   String getStatusLabel(FileProcessStatus status) {
     switch (status) {
       case FileProcessStatus.pending:
@@ -257,6 +317,7 @@ class ProcessedFilesPageState extends State<ProcessedFilesPage>
     }
   }
 
+  // icon or progress indicator per status
   Widget buildStatusWidget(FileProcessStatus status) {
     switch (status) {
       case FileProcessStatus.pending:
@@ -281,10 +342,12 @@ class ProcessedFilesPageState extends State<ProcessedFilesPage>
     super.dispose();
   }
 
+  // true if any file is pending or in progress
   bool get isProcessing => fileStates.values.any((s) =>
       s.status == FileProcessStatus.inProgress ||
       s.status == FileProcessStatus.pending);
 
+  // count of files with done status
   int get doneCount =>
       fileStates.values.where((s) => s.status == FileProcessStatus.done).length;
 
@@ -293,56 +356,13 @@ class ProcessedFilesPageState extends State<ProcessedFilesPage>
     super.build(context);
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          isProcessing && files.isNotEmpty
-              ? 'Обработка файлов ($doneCount/${files.length})'
-              : 'Обработка файлов',
-        ),
+        title: Text(buildAppBarTitle()),
       ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: patientIdController,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      labelText: 'ID пациента',
-                      hintText: 'Введите ID',
-                      border: OutlineInputBorder(),
-                    ),
-                    onSubmitted: (_) => loadPatientFiles(),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                FilledButton(
-                  onPressed: isLoading ? null : () => loadPatientFiles(),
-                  child: isLoading
-                      ? SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Theme.of(context).colorScheme.onPrimary,
-                          ),
-                        )
-                      : const Text('Загрузить'),
-                ),
-              ],
-            ),
-          ),
-          if (loadError != null)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Text(
-                loadError!,
-                style: const TextStyle(color: AppTheme.statusFailed),
-              ),
-            ),
+          buildPatientInputSection(),
+          if (loadError != null) buildErrorBanner(loadError!),
           Expanded(
             child: buildFilesList(),
           ),
@@ -351,6 +371,61 @@ class ProcessedFilesPageState extends State<ProcessedFilesPage>
     );
   }
 
+  // shows progress count when processing
+  String buildAppBarTitle() =>
+      isProcessing && files.isNotEmpty
+          ? 'Обработка файлов ($doneCount/${files.length})'
+          : 'Обработка файлов';
+
+  // patient id field and load button
+  Widget buildPatientInputSection() {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: patientIdController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'ID пациента',
+                hintText: 'Введите ID',
+                border: OutlineInputBorder(),
+              ),
+              onSubmitted: (value) => loadPatientFiles(),
+            ),
+          ),
+          const SizedBox(width: 12),
+          FilledButton(
+            onPressed: isLoading ? null : () => loadPatientFiles(),
+            child: isLoading
+                ? SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Theme.of(context).colorScheme.onPrimary,
+                    ),
+                  )
+                : const Text('Загрузить'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // error text in red below input
+  Widget buildErrorBanner(String message) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Text(
+        message,
+        style: const TextStyle(color: AppTheme.statusFailed),
+      ),
+    );
+  }
+
+  // empty state or list of file rows
   Widget buildFilesList() {
     if (files.isEmpty && !isLoading) {
       return Center(
@@ -370,66 +445,93 @@ class ProcessedFilesPageState extends State<ProcessedFilesPage>
         final state =
             fileStates[file.index] ??
                 const FileProcessState(status: FileProcessStatus.pending);
-        final canTap =
-            state.status == FileProcessStatus.done ||
-            state.status == FileProcessStatus.failed;
-
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: InkWell(
-            onTap: canTap ? () => onFileTap(file) : null,
-            borderRadius: BorderRadius.circular(16),
-            child: Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppTheme.backgroundSurface,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: state.status == FileProcessStatus.done
-                      ? AppTheme.statusPredictionReady.withValues(alpha: 0.4)
-                      : AppTheme.borderSubtle,
-                ),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    file.isEdf
-                        ? Icons.medical_information
-                        : Icons.insert_drive_file,
-                    color: AppTheme.accentPrimary,
-                    size: 28,
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          file.name,
-                          style: const TextStyle(
-                            color: AppTheme.textPrimary,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 16,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          getStatusLabel(state.status),
-                          style: const TextStyle(
-                            color: AppTheme.textSecondary,
-                            fontSize: 13,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  buildStatusWidget(state.status),
-                ],
-              ),
-            ),
-          ),
+        return FileListItem(
+          file: file,
+          state: state,
+          getStatusLabel: getStatusLabel,
+          buildStatusWidget: buildStatusWidget,
+          onTap: () => onFileTap(file),
         );
       },
+    );
+  }
+}
+
+// single file row in list; tap opens session when done, retry when failed
+class FileListItem extends StatelessWidget {
+  const FileListItem({
+    required this.file,
+    required this.state,
+    required this.getStatusLabel,
+    required this.buildStatusWidget,
+    required this.onTap,
+  });
+
+  final PatientFileInfo file;
+  final FileProcessState state;
+  final String Function(FileProcessStatus) getStatusLabel;
+  final Widget Function(FileProcessStatus) buildStatusWidget;
+  final VoidCallback onTap;
+
+  // tap enabled only when done (open) or failed (retry)
+  bool get canTap =>
+      state.status == FileProcessStatus.done ||
+      state.status == FileProcessStatus.failed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: InkWell(
+        onTap: canTap ? onTap : null,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppTheme.backgroundSurface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: state.status == FileProcessStatus.done
+                  ? AppTheme.statusPredictionReady.withValues(alpha: 0.4)
+                  : AppTheme.borderSubtle,
+            ),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                file.isEdf ? Icons.medical_information : Icons.insert_drive_file,
+                color: AppTheme.accentPrimary,
+                size: 28,
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      file.name,
+                      style: const TextStyle(
+                        color: AppTheme.textPrimary,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 16,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      getStatusLabel(state.status),
+                      style: const TextStyle(
+                        color: AppTheme.textSecondary,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              buildStatusWidget(state.status),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

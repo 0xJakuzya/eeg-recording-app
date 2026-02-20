@@ -13,6 +13,7 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   FlutterForegroundTask.initCommunicationPort();
   await stopOrphanedForegroundServiceIfNeeded();
+  // order: settings first (others depend), then files, ble, recording
   Get.put(SettingsController());
   Get.put(FilesController());
   Get.put(BleController());
@@ -20,6 +21,7 @@ void main() async {
   runApp(const MyApp());
 }
 
+// root app with GetX DI, dark theme, foreground task wrapper for recording
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 

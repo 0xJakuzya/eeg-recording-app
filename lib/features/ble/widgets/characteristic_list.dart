@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 
-/// List tile for a BLE characteristic with read/write/notify buttons.
+// tile with read/write/notify actions; uses debugPrint on read/write/notify
 class CharacteristicTile extends StatelessWidget {
   const CharacteristicTile({super.key, required this.characteristic});
 

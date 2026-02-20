@@ -5,6 +5,7 @@ import 'package:dio/dio.dart';
 import 'package:http/http.dart' as http;
 import 'package:ble_app/core/constants/polysomnography_constants.dart';
 
+// api response from save_predict_json; prediction map and index for hypnogram
 class PredictResult {
   const PredictResult({
     required this.prediction,
@@ -15,6 +16,7 @@ class PredictResult {
   final int? jsonIndex;
 }
 
+// file metadata from get_patient_files_list
 class PatientFileInfo {
   const PatientFileInfo({
     required this.index,
@@ -26,10 +28,11 @@ class PatientFileInfo {
   final String name;
   final Map<String, dynamic>? extra;
 
+  // true for .edf; affects channel param in save_predict_json
   bool get isEdf => name.toLowerCase().endsWith('.edf');
 }
 
-/// API client for polysomnography service.
+// upload files, get list, save_predict_json, fetch hypnogram image
 class PolysomnographyApiService {
   PolysomnographyApiService({
     String? baseUrl,
@@ -41,45 +44,20 @@ class PolysomnographyApiService {
   final String baseUrlStorage;
   final String Function()? baseUrlGetterStorage;
 
+  // baseUrlGetter preferred when set; else baseUrlStorage
   String get baseUrl =>
       baseUrlGetterStorage != null ? baseUrlGetterStorage!() : baseUrlStorage;
 
   final String? apiKey;
 
+  // adds bearer token to request headers when apiKey set
   void applyAuthHeader(http.BaseRequest request) {
     if (apiKey != null) {
       request.headers['Authorization'] = 'Bearer $apiKey';
     }
   }
 
-  static String parseErrorBody(String body, int statusCode) {
-    if (body.isEmpty) return 'Код $statusCode';
-    try {
-      final d = jsonDecode(body);
-      if (d is Map) {
-        final detail = d['detail'];
-        if (detail is String) return detail;
-        if (detail is List && detail.isNotEmpty) {
-          final msgs = detail.map((e) {
-            if (e is Map) {
-              final loc = e['loc'];
-              final msg = e['msg'] ?? '';
-              if (loc is List && loc.isNotEmpty) {
-                final field = loc.last.toString();
-                return '$field: $msg';
-              }
-              return msg.toString();
-            }
-            return e.toString();
-          }).toList();
-          return msgs.join('; ');
-        }
-        if (d['error'] != null) return d['error'].toString();
-      }
-    } catch (jsonParseError) {}
-    return body.length > 200 ? '${body.substring(0, 200)}...' : body;
-  }
-
+  // empty map or bearer header for http requests
   Map<String, String> get authHeaders {
     if (apiKey != null) {
       return {'Authorization': 'Bearer $apiKey'};
@@ -87,6 +65,38 @@ class PolysomnographyApiService {
     return {};
   }
 
+  // extract detail/msg from json error body; fallback to status code or raw body
+  static String parseErrorBody(String body, int statusCode) {
+    if (body.isEmpty) return 'Код $statusCode';
+    try {
+      final d = jsonDecode(body);
+      if (d is! Map) return body.length > 200 ? '${body.substring(0, 200)}...' : body;
+      final detail = d['detail'];
+      if (detail is String) return detail;
+      if (detail is List && detail.isNotEmpty) return parseValidationErrors(detail);
+      if (d['error'] != null) return d['error'].toString();
+    } catch (ignored) {}
+    return body.length > 200 ? '${body.substring(0, 200)}...' : body;
+  }
+
+  // map validation error items to "field: msg" format
+  static String parseValidationErrors(List detail) {
+    final msgs = detail.map((e) {
+      if (e is Map) {
+        final loc = e['loc'];
+        final msg = e['msg'] ?? '';
+        if (loc is List && loc.isNotEmpty) {
+          final field = loc.last.toString();
+          return '$field: $msg';
+        }
+        return msg.toString();
+      }
+      return e.toString();
+    }).toList();
+    return msgs.join('; ');
+  }
+
+  // multipart upload; edf skips sampling_frequency param
   Future<Map<String, dynamic>> uploadPatientFile({
     required File file,
     required int patientId,
@@ -96,17 +106,12 @@ class PolysomnographyApiService {
     final filename = file.path.split(Platform.pathSeparator).last;
     final isEdf = filename.toLowerCase().endsWith('.edf');
 
-    final queryParams = <String, String>{
-      'patient_id': patientId.toString(),
-      'patient_name': patientName,
-    };
-    if (!isEdf) {
-      queryParams['sampling_frequency'] =
-          (samplingFrequency ??
-                  PolysomnographyConstants.defaultSamplingFrequencyHz)
-              .toInt()
-              .toString();
-    }
+    final queryParams = buildUploadQueryParams(
+      patientId: patientId,
+      patientName: patientName,
+      isEdf: isEdf,
+      samplingFrequency: samplingFrequency,
+    );
 
     final formData = FormData.fromMap({
       PolysomnographyConstants.uploadFileFieldName:
@@ -136,25 +141,53 @@ class PolysomnographyApiService {
         throw Exception('Ошибка загрузки ${response.statusCode}: $msg');
       }
 
-      if (response.data is Map<String, dynamic>) {
-        return response.data as Map<String, dynamic>;
-      }
-      if (response.data != null) {
-        final decoded = jsonDecode(response.data.toString());
-        if (decoded is Map<String, dynamic>) return decoded;
-      }
-      return <String, dynamic>{'result': response.data?.toString() ?? ''};
+      return parseUploadResponse(response.data);
     } on DioException catch (e) {
       final statusCode = e.response?.statusCode ?? 0;
-      final data = e.response?.data;
-      final bodyStr = data is Map
-          ? jsonEncode(data)
-          : (data?.toString() ?? e.message ?? '');
+      final bodyStr = dioExceptionToBodyString(e);
       final msg = parseErrorBody(bodyStr, statusCode);
       throw Exception('Ошибка загрузки $statusCode: $msg');
     }
   }
 
+  // patient_id, patient_name; sampling_frequency only for non-edf
+  Map<String, String> buildUploadQueryParams({
+    required int patientId,
+    required String patientName,
+    required bool isEdf,
+    double? samplingFrequency,
+  }) {
+    final params = <String, String>{
+      'patient_id': patientId.toString(),
+      'patient_name': patientName,
+    };
+    if (!isEdf) {
+      params['sampling_frequency'] = (samplingFrequency ??
+              PolysomnographyConstants.defaultSamplingFrequencyHz)
+          .toInt()
+          .toString();
+    }
+    return params;
+  }
+
+  // accepts map or json string; fallback to result wrapper
+  Map<String, dynamic> parseUploadResponse(dynamic data) {
+    if (data is Map<String, dynamic>) return data;
+    if (data != null) {
+      final decoded = jsonDecode(data.toString());
+      if (decoded is Map<String, dynamic>) return decoded;
+    }
+    return <String, dynamic>{'result': data?.toString() ?? ''};
+  }
+
+  // extracts body as string for parseErrorBody
+  String dioExceptionToBodyString(DioException e) {
+    final data = e.response?.data;
+    if (data is Map) return jsonEncode(data);
+    return data?.toString() ?? e.message ?? '';
+  }
+
+  // gets files list; supports array or map response format
   Future<List<PatientFileInfo>> getPatientFilesList(int patientId) async {
     final uri = Uri.parse(
       '$baseUrl${PolysomnographyConstants.getPatientFilesListPath}',
@@ -163,59 +196,84 @@ class PolysomnographyApiService {
     final response = await http.get(uri, headers: authHeaders);
 
     if (response.statusCode != 200) {
-      String error = 'Ошибка ${response.statusCode}';
-      try {
-        final err = jsonDecode(response.body);
-        if (err is Map && err['error'] != null) {
-          error = err['error'].toString();
-        }
-      } catch (ignored) {}
-      throw Exception(error);
+      throw Exception(parseListError(response.body, response.statusCode));
     }
 
     final decoded = jsonDecode(response.body);
-    if (decoded is! Map<String, dynamic>) {
-      return [];
-    }
+    if (decoded is! Map<String, dynamic>) return [];
 
-    final result = <PatientFileInfo>[];
+    return parseFilesList(decoded);
+  }
 
+  // extracts error key from json; fallback to status
+  String parseListError(String body, int statusCode) {
+    try {
+      final err = jsonDecode(body);
+      if (err is Map && err['error'] != null) {
+        return err['error'].toString();
+      }
+    } catch (ignored) {}
+    return 'Ошибка $statusCode';
+  }
+
+  // dispatches to array or map parser by response shape
+  List<PatientFileInfo> parseFilesList(Map<String, dynamic> decoded) {
     final filesList = decoded['files_list'];
     if (filesList is List) {
-      for (var i = 0; i < filesList.length; i++) {
-        final item = filesList[i];
-        String name = 'file_$i';
-        if (item is String) {
-          name = item.split(Platform.pathSeparator).last;
-          if (name.isEmpty) name = item.split('/').last;
-        } else if (item is Map) {
-          name = (item['name'] ?? item['filename'] ?? name).toString();
-        }
-        result.add(PatientFileInfo(
-          index: i,
-          name: name,
-          extra: item is Map ? Map<String, dynamic>.from(item) : null,
-        ));
-      }
-      return result;
+      return parseFilesListFromArray(filesList);
     }
+    return parseFilesListFromMap(decoded);
+  }
 
+  // index from position; name from item or file_N fallback
+  List<PatientFileInfo> parseFilesListFromArray(List filesList) {
+    final result = <PatientFileInfo>[];
+    for (var i = 0; i < filesList.length; i++) {
+      final item = filesList[i];
+      final name = extractFileNameFromItem(item, 'file_$i');
+      result.add(PatientFileInfo(
+        index: i,
+        name: name,
+        extra: item is Map ? Map<String, dynamic>.from(item) : null,
+      ));
+    }
+    return result;
+  }
+
+  // string path: last segment; map: name/filename key; else fallback
+  String extractFileNameFromItem(dynamic item, String fallback) {
+    if (item is String) {
+      final name = item.split(Platform.pathSeparator).last;
+      return name.isNotEmpty ? name : item.split('/').last;
+    }
+    if (item is Map) {
+      return (item['name'] ?? item['filename'] ?? fallback).toString();
+    }
+    return fallback;
+  }
+
+  // keys as index; values as path or name; sorted by index
+  List<PatientFileInfo> parseFilesListFromMap(Map<String, dynamic> decoded) {
+    final result = <PatientFileInfo>[];
     for (final entry in decoded.entries) {
       final index = int.tryParse(entry.key);
       if (index == null) continue;
       final value = entry.value;
-      String name = 'file_$index';
-      if (value is String) {
-        final parts = value.split(RegExp(r'[/\\]'));
-        name = parts.isNotEmpty ? parts.last : value;
-        if (name.isEmpty) name = value;
-      }
+      final name = value is String ? fileNameFromPath(value) : 'file_$index';
       result.add(PatientFileInfo(index: index, name: name));
     }
     result.sort((a, b) => a.index.compareTo(b.index));
     return result;
   }
 
+  // last path segment; handles / and backslash
+  String fileNameFromPath(String path) {
+    final parts = path.split(RegExp(r'[/\\]'));
+    final name = parts.isNotEmpty ? parts.last : path;
+    return name.isEmpty ? path : name;
+  }
+
+  // POST save_predict_json; returns prediction and json index for hypnogram
   Future<PredictResult> savePredictJson({
     required int patientId,
     required int fileIndex,
@@ -242,82 +300,89 @@ class PolysomnographyApiService {
     client.close();
 
     if (response.statusCode != 200) {
-      String detail = response.body;
-      try {
-        final err = jsonDecode(response.body);
-        if (err is Map && err['error'] != null) {
-          detail = err['error'].toString();
-        }
-      } catch (ignored) {}
-      throw Exception('Ошибка предикта ${response.statusCode}: $detail');
+      throw Exception(parsePredictError(response.body, response.statusCode));
     }
 
-    dynamic decoded = jsonDecode(response.body);
+    return parsePredictResponse(response.body);
+  }
 
-    // API может вернуть JSON-строку (schema "string") — парсим повторно
-    if (decoded is String) {
-      decoded = jsonDecode(decoded);
-    }
+  // error key or full body; truncates long body
+  String parsePredictError(String body, int statusCode) {
+    try {
+      final err = jsonDecode(body);
+      if (err is Map && err['error'] != null) {
+        return 'Ошибка предикта $statusCode: ${err['error']}';
+      }
+    } catch (ignored) {}
+    return 'Ошибка предикта $statusCode: $body';
+  }
+
+  // double-json decode if string; extracts from root and result; fallback to root stage keys
+  PredictResult parsePredictResponse(String body) {
+    dynamic decoded = jsonDecode(body);
+    if (decoded is String) decoded = jsonDecode(decoded);
 
     if (decoded is! Map) {
       throw Exception('Некорректный ответ сервера');
     }
     final decodedMap = Map<String, dynamic>.from(decoded as Map);
 
-    int? jsonIndex;
-    Map<String, dynamic>? prediction;
+    final extracted = extractFromMap(decodedMap);
+    int? jsonIndex = extracted.$1;
+    Map<String, dynamic>? prediction = extracted.$2;
 
-    void extractFrom(Map<String, dynamic> m) {
-      if (jsonIndex == null) {
-        for (final key in ['index', 'json_index', 'file_index', 'id']) {
-          final v = int.tryParse(m[key]?.toString() ?? '');
-          if (v != null) {
-            jsonIndex = v;
-            break;
-          }
-        }
-      }
-      if (prediction == null && m['prediction'] is Map) {
-        prediction = Map<String, dynamic>.from(m['prediction'] as Map);
-      }
-      if (prediction == null && m['result'] is Map) {
-        final res = m['result'] as Map;
-        if (res['prediction'] is Map) {
-          prediction = Map<String, dynamic>.from(res['prediction'] as Map);
-        }
-      }
-    }
-
-    extractFrom(decodedMap);
     final result = decodedMap['result'];
     if (result is Map) {
-      extractFrom(Map<String, dynamic>.from(result));
+      final fromResult = extractFromMap(Map<String, dynamic>.from(result));
+      jsonIndex ??= fromResult.$1;
+      prediction ??= fromResult.$2;
     }
 
-    // Если prediction не найден — возможно, корневой объект и есть предикт
-    // (ключи: Wake, N1, N2, N3, REM; значения: списки интервалов [[start,end],...])
     if (prediction == null && decodedMap.isNotEmpty) {
-      const knownStages = ['w', 'wake', 'n1', 'n2', 'n3', 'rem'];
-      final hasStageKeys = decodedMap.keys.any(
-          (k) => knownStages.contains(k.toString().toLowerCase()));
-      if (hasStageKeys) {
-        prediction = Map<String, dynamic>.from(decodedMap);
-      }
+      prediction = tryExtractPredictionFromRoot(decodedMap);
     }
 
     return PredictResult(prediction: prediction, jsonIndex: jsonIndex);
   }
 
-  /// Проверяет доступность сервера по baseUrl.
-  /// Возвращает null при успехе, иначе — текст ошибки.
+  // extracts json_index and prediction map from response object
+  static (int?, Map<String, dynamic>?) extractFromMap(Map<String, dynamic> m) {
+    int? jsonIndex;
+    for (final key in ['index', 'json_index', 'file_index', 'id']) {
+      final v = int.tryParse(m[key]?.toString() ?? '');
+      if (v != null) {
+        jsonIndex = v;
+        break;
+      }
+    }
+    Map<String, dynamic>? prediction;
+    if (m['prediction'] is Map) {
+      prediction = Map<String, dynamic>.from(m['prediction'] as Map);
+    } else if (m['result'] is Map) {
+      final res = m['result'] as Map;
+      if (res['prediction'] is Map) {
+        prediction = Map<String, dynamic>.from(res['prediction'] as Map);
+      }
+    }
+    return (jsonIndex, prediction);
+  }
+
+  // fallback: root may be prediction (wake, n1..rem with interval lists)
+  Map<String, dynamic>? tryExtractPredictionFromRoot(
+      Map<String, dynamic> decodedMap) {
+    const knownStages = ['w', 'wake', 'n1', 'n2', 'n3', 'rem'];
+    final hasStageKeys = decodedMap.keys.any(
+        (k) => knownStages.contains(k.toString().toLowerCase()));
+    return hasStageKeys ? Map<String, dynamic>.from(decodedMap) : null;
+  }
+
+  // pings url; returns null on success, error text otherwise (5s timeout)
   Future<String?> checkConnection(String url) async {
     final base = url.trim();
     if (base.isEmpty) return 'Укажите адрес сервера';
-    String normalized = base;
-    if (!normalized.startsWith('http://') && !normalized.startsWith('https://')) {
-      normalized = 'http://$normalized';
-    }
-    if (normalized.endsWith('/')) normalized = normalized.substring(0, normalized.length - 1);
+
+    final normalized = normalizeConnectionUrl(base);
+
     try {
       final uri = Uri.parse(normalized);
       final response = await http.get(uri).timeout(
@@ -329,17 +394,38 @@ class PolysomnographyApiService {
       }
       return 'Сервер ответил: ${response.statusCode}';
     } catch (e) {
-      final msg = e.toString();
-      if (msg.contains('SocketException') || msg.contains('Connection refused')) {
-        return 'Сервер недоступен. Проверьте:\n• Телефон и ПК в одной Wi‑Fi\n• IP и порт (например :8000)\n• Firewall на ПК\n• Docker: docker run -p 8000:8000 ...';
-      }
-      if (msg.contains('timeout') || msg.contains('Превышено')) {
-        return 'Таймаут. Сервер не отвечает за 5 сек.';
-      }
-      return msg.length > 80 ? '${msg.substring(0, 80)}...' : msg;
+      return connectionErrorToMessage(e.toString());
     }
   }
 
+  // add http prefix if missing; strip trailing slash
+  String normalizeConnectionUrl(String base) {
+    String url = base;
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      url = 'http://$url';
+    }
+    if (url.endsWith('/')) {
+      url = url.substring(0, url.length - 1);
+    }
+    return url;
+  }
+
+  // convert socket/timeout errors to user-friendly messages
+  String connectionErrorToMessage(String msg) {
+    if (msg.contains('SocketException') || msg.contains('Connection refused')) {
+      return 'Сервер недоступен. Проверьте:\n'
+          '• Телефон и ПК в одной Wi‑Fi\n'
+          '• IP и порт (например :8000)\n'
+          '• Firewall на ПК\n'
+          '• Docker: docker run -p 8000:8000 ...';
+    }
+    if (msg.contains('timeout') || msg.contains('Превышено')) {
+      return 'Таймаут. Сервер не отвечает за 5 сек.';
+    }
+    return msg.length > 80 ? '${msg.substring(0, 80)}...' : msg;
+  }
+
+  // returns raw bytes; optional startFrom/endTo for range
   Future<List<int>> fetchSleepGraphImage(
     int index, {
     int? startFrom,

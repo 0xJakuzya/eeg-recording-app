@@ -1,4 +1,4 @@
-/// Фильтр подавления сетевой частоты 50 Гц (требование модели анализа).
+// simple 50 hz notch filter for polysomnography model; two-sample average
 class Notch50HzFilter {
   double prevInput = 0.0;
   bool hasPrev = false;
@@ -18,6 +18,7 @@ class Notch50HzFilter {
   }
 }
 
+// batch apply notch filter to list; returns new list
 List<double> applyNotch50Hz(List<double> samples) {
   final filter = Notch50HzFilter();
   return samples.map(filter.process).toList();

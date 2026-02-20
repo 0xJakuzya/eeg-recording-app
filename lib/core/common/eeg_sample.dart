@@ -1,5 +1,4 @@
-// Model representing a single EEG data sample.
-// Contains timestamp and voltage values for multiple channels (1-8).
+// immutable sample: timestamp + channel voltages; 1-8 channels; CSV serialization for recording/replay
 class EegSample {
   final DateTime timestamp;
   final List<double> channels;
@@ -7,16 +6,20 @@ class EegSample {
   EegSample({
     required this.timestamp,
     required this.channels,
-  }) : assert(channels.isNotEmpty && channels.length <= 8,
-            'EEG sample must have 1-8 channels');
+  }) : assert(
+            channels.isNotEmpty && channels.length <= 8,
+            'EEG sample must have 1-8 channels',
+          ); // validation for parser/csv compatibility
 
   int get channelCount => channels.length;
 
+  // format: millisecondsSinceEpoch,ch0,ch1,...
   String toCsvLine() {
     final timestampMs = timestamp.millisecondsSinceEpoch;
     return '$timestampMs,${channels.join(',')}';
   }
 
+  // parse csv line: ms,ch0,ch1,...; used by CsvStreamService, file replay
   factory EegSample.fromCsvLine(String line) {
     final parts = line.split(',');
     return EegSample(

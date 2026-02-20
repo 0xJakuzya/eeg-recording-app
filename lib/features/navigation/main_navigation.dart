@@ -9,6 +9,7 @@ import 'package:ble_app/features/files/files_page.dart' show FilesPage, filesPag
 import 'package:ble_app/features/settings/settings_page.dart';
 import 'package:ble_app/core/theme/app_theme.dart';
 
+// bottom nav with indexed stack; WithForegroundTask wraps body; refresh on tab switch
 class MainNavigation extends StatelessWidget {
   const MainNavigation({super.key});
 
@@ -37,6 +38,7 @@ class MainNavigation extends StatelessWidget {
             currentIndex: controller.currentIndex.value,
             onTap: (index) {
               controller.changeIndex(index);
+              // side effect: refresh when entering files/processed tabs
               if (index == 2) {
                 filesPageKey.currentState?.refreshFiles();
               } else if (index == 3) {

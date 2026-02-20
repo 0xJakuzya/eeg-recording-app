@@ -4,9 +4,9 @@ import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:get/get.dart';
 import 'package:ble_app/core/constants/ble_constants.dart';
 
-/// Controller for Bluetooth Low Energy operations.
-/// Handles scanning, connecting, and disconnecting from devices.
+// controller for BLE scan, connect, disconnect; auto-selects first notify/indicate characteristic for EEG data
 class BleController extends GetxController {
+  // connected device; services; auto-selected data char; scan/connection state
   final Rx<BluetoothDevice?> connectedDevice = Rx<BluetoothDevice?>(null);
   final RxList<BluetoothService> services = <BluetoothService>[].obs;
   final Rx<String?> selectedDataServiceUuid = Rx<String?>(null);
@@ -18,10 +18,12 @@ class BleController extends GetxController {
 
   @override
   void onReady() {
+    // start scan on controller ready
     super.onReady();
     scanDevices();
   }
 
+  // throttled by minScanInterval; optional service filter for targeted scan
   Future<void> scanDevices({String? serviceUuid}) async {
     if (isScanning.value) return;
     final now = DateTime.now();
@@ -47,8 +49,10 @@ class BleController extends GetxController {
     }
   }
 
+  // live stream of BLE scan results
   Stream<List<ScanResult>> get scanResults => FlutterBluePlus.scanResults;
 
+  // disconnect current if different; connect; discover services; auto-select data char; listen for disconnect
   Future<void> connectToDevices(BluetoothDevice device) async {
     final current = connectedDevice.value;
     if (current != null && current.remoteId.str != device.remoteId.str) {
@@ -76,6 +80,7 @@ class BleController extends GetxController {
     services.value = discoveredServices;
     autoSelectDataCharacteristic(discoveredServices);
 
+    // listen for disconnect to clear state
     device.connectionState.listen((state) {
       connectionState.value = state;
       if (state == BluetoothConnectionState.disconnected) {
@@ -87,6 +92,7 @@ class BleController extends GetxController {
     connectionState.value = BluetoothConnectionState.connected;
   }
 
+  // prefers services not in skipServiceParts; pickFrom finds first notify/indicate
   void autoSelectDataCharacteristic(
       List<BluetoothService> discoveredServices) {
     selectedDataServiceUuid.value = null;
@@ -112,12 +118,13 @@ class BleController extends GetxController {
     pickFrom(discoveredServices);
   }
 
+  // reset selected data service/characteristic UUIDs
   void clearSelection() {
     selectedDataServiceUuid.value = null;
     selectedDataCharUuid.value = null;
   }
 
-  /// Command characteristic for EEG_Device (UUID fff2)
+  // eeg_device command char (uuid fff2)
   BluetoothCharacteristic? get commandCharacteristic {
     for (final service in services) {
       for (final c in service.characteristics) {
@@ -130,6 +137,7 @@ class BleController extends GetxController {
     return null;
   }
 
+  // first characteristic with write or writeWithoutResponse
   BluetoothCharacteristic? get writableCharacteristic {
     for (final service in services) {
       for (final c in service.characteristics) {
@@ -141,6 +149,22 @@ class BleController extends GetxController {
     return null;
   }
 
+  // characteristic by selectedDataServiceUuid/selectedDataCharUuid; used for notify stream
+  BluetoothCharacteristic? get selectedDataCharacteristic {
+    final sUuid = selectedDataServiceUuid.value;
+    final cUuid = selectedDataCharUuid.value;
+    if (sUuid == null || cUuid == null) return null;
+
+    for (final service in services) {
+      if (service.uuid.str != sUuid) continue;
+      for (final c in service.characteristics) {
+        if (c.uuid.str == cUuid) return c;
+      }
+    }
+    return null;
+  }
+
+  // appends ; if missing; prefers command char, else first writable
   Future<bool> sendCommand(String command) async {
     final char = commandCharacteristic ?? writableCharacteristic;
     if (char == null) return false;
@@ -163,20 +187,7 @@ class BleController extends GetxController {
     }
   }
 
-  BluetoothCharacteristic? get selectedDataCharacteristic {
-    final sUuid = selectedDataServiceUuid.value;
-    final cUuid = selectedDataCharUuid.value;
-    if (sUuid == null || cUuid == null) return null;
-
-    for (final service in services) {
-      if (service.uuid.str != sUuid) continue;
-      for (final c in service.characteristics) {
-        if (c.uuid.str == cUuid) return c;
-      }
-    }
-    return null;
-  }
-
+  // sends cmdOff, disables notify, disconnects; clears state on done
   Future<void> disconnect() async {
     final device = connectedDevice.value;
     if (device == null) return;

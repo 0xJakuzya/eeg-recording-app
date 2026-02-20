@@ -1,5 +1,6 @@
 import 'dart:io';
 
+// overall session processing state
 enum ProcessingStatus {
   pending,
   processing,
@@ -8,6 +9,7 @@ enum ProcessingStatus {
   unknown,
 }
 
+// prediction api state per session
 enum PredictionStatus {
   notStarted,
   inProgress,
@@ -15,6 +17,7 @@ enum PredictionStatus {
   failed,
 }
 
+// session model for processed polysomnography dirs
 class ProcessedSession {
   final String id;
   final Directory directory;
@@ -34,6 +37,7 @@ class ProcessedSession {
 
   String get path => directory.path;
 
+  // immutable update; null params keep existing values
   ProcessedSession copyWith({
     ProcessingStatus? status,
     PredictionStatus? predictionStatus,
@@ -50,6 +54,7 @@ class ProcessedSession {
     );
   }
 
+  // id from last path segment; jsonIndex from session_N pattern
   factory ProcessedSession.fromDirectory(
     Directory directory, {
     ProcessingStatus status = ProcessingStatus.unknown,

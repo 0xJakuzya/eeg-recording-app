@@ -5,8 +5,7 @@ import 'package:ble_app/core/constants/recording_constants.dart';
 import 'package:ble_app/core/common/eeg_sample.dart';
 import 'package:ble_app/core/utils/format_extensions.dart';
 
-/// Service for writing EEG samples to CSV (txt) files.
-/// Format: sample{delim}ch1{delim}ch2...
+// writes eeg samples to csv/txt; buffered; rotation by interval; meta line on stop
 class CsvStreamWriter {
   File? file;
   IOSink? sink;
@@ -30,6 +29,7 @@ class CsvStreamWriter {
     this.fileExtension = '.txt',
   });
 
+  // resets state and opens first output file
   Future<void> startRecording(String filename, {String? baseDirectory}) async {
     sampleCounter = 0;
     partIndex = 1;
@@ -39,6 +39,7 @@ class CsvStreamWriter {
     await openNewFile();
   }
 
+  // creates file in baseDirectory or app docs dir; name includes date/time
   Future<void> openNewFile() async {
     final String dirPath;
     final baseDir = baseDirectory;
@@ -67,6 +68,7 @@ class CsvStreamWriter {
     sink = file!.openWrite(mode: FileMode.writeOnly);
   }
 
+  // base_dd.MM.yyyy_HH-mm.ext from original name and startedAt
   String buildRotatedFilename(
       String originalName, DateTime startedAt, int partIndex) {
     final dotIndex = originalName.lastIndexOf('.');
@@ -85,6 +87,7 @@ class CsvStreamWriter {
     return '${base}_${datePart}_$timePart$ext';
   }
 
+  // buffers row; outputVolts -> all channels, else first only; auto-flush and rotation
   void writeSample(EegSample sample) {
     sampleCounter++;
     final delim = RecordingConstants.csvDelimiter;
@@ -113,6 +116,7 @@ class CsvStreamWriter {
     buffer.clear();
   }
 
+  // flush, close; prepends meta line when duration given for csv parsing
   Future<void> stopRecording({double? durationSeconds}) async {
     flushBuffer();
     await sink?.flush();
@@ -132,6 +136,7 @@ class CsvStreamWriter {
     }
   }
 
+  // rotates file when rotationInterval elapsed; side effect: may call rotateFile
   void checkRotation() {
     if (sink == null || currentFileStartedAt == null) return;
     if (rotationInterval <= Duration.zero) return;
@@ -141,6 +146,7 @@ class CsvStreamWriter {
     }
   }
 
+  // closes current file, increments part, opens next; resets sampleCounter
   Future<void> rotateFile() async {
     flushBuffer();
     await sink?.flush();

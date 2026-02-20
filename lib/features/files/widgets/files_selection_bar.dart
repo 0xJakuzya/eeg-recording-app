@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:ble_app/core/theme/app_theme.dart';
 
+// bottom bar when selection mode; select all, share, upload, delete
 class FilesSelectionBar extends StatelessWidget {
   const FilesSelectionBar({
     super.key,

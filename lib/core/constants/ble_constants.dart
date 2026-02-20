@@ -1,11 +1,14 @@
+// BLE scan/connect timeouts; MTU; EEG service/characteristic UUIDs; device text commands
 class BleConstants {
   BleConstants._();
+
+  // scan/connect throttling and timeouts
   static const Duration scanTimeout = Duration(seconds: 5);
   static const Duration connectTimeout = Duration(seconds: 5);
   static const int requestMtuSize = 512;
   static const Duration minScanInterval = Duration(seconds: 3);
   static const Duration scanResultsCollectDelay = Duration(milliseconds: 800);
-  static const int defaultSampleRateHz = 300; // Default sample rate for the EEG device
+  static const int defaultSampleRateHz = 300; // default sample rate for EEG device
   static const List<String> skipServiceParts = [
     '180f', // Battery
     '180a', // Device Info
@@ -24,5 +27,5 @@ class BleConstants {
   static const String cmdStartTransmission = 'start;';
   static const String cmdStopTransmission = 'stop;';
   static const String cmdOff = 'off;';
-  static String cmdSetSamplingRate(int hz) => 'rate $hz;';
+  static String cmdSetSamplingRate(int hz) => 'rate $hz;'; // e.g. rate 300;
 }

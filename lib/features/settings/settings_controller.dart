@@ -7,9 +7,10 @@ import 'package:ble_app/core/constants/recording_constants.dart';
 import 'package:ble_app/features/ble/ble_controller.dart';
 import 'package:ble_app/core/utils/format_extensions.dart';
 
-/// Controller for application settings.
-/// Manages EEG recording parameters, data format, and recording directory.
+// controller responsible for EEG recording params, data format, polysomnography URL
+// GetX reactive state; persists via shared_preferences; delegates BLE commands to BleController
 class SettingsController extends GetxController {
+  // SharedPreferences keys for persisted settings
   static const String keyRecordingDirectory =
       RecordingConstants.keyRecordingDirectory;
   static const String keyDataFormat = 'eeg_data_format';
@@ -22,6 +23,7 @@ class SettingsController extends GetxController {
   static const String keySamplingRateHz = 'sampling_rate_hz';
   static const String keyPolysomnographyBaseUrl = 'polysomnography_base_url';
 
+  // reactive state; channelCount/samplingRateHz for display; recordingChannelCount for file output
   RxInt channelCount = RxInt(8);
   RxInt samplingRateHz = RxInt(RecordingConstants.samplingRateDefaultHz);
   Rx<String?> recordingDirectory = Rx<String?>(null);
@@ -36,6 +38,7 @@ class SettingsController extends GetxController {
   @override
   void onInit() {
     super.onInit();
+    // load all persisted settings from SharedPreferences
     loadRecordingDirectory();
     loadDataFormat();
     loadRecordingFileExtension();
@@ -46,6 +49,7 @@ class SettingsController extends GetxController {
     loadPolysomnographyBaseUrl();
   }
 
+  // fallback to default when empty/null
   String get effectivePolysomnographyBaseUrl {
     final url = polysomnographyBaseUrl.value?.trim();
     if (url == null || url.isEmpty) {
@@ -54,11 +58,13 @@ class SettingsController extends GetxController {
     return url;
   }
 
+  // load from SharedPreferences; value may be null
   Future<void> loadPolysomnographyBaseUrl() async {
     final prefs = await SharedPreferences.getInstance();
     polysomnographyBaseUrl.value = prefs.getString(keyPolysomnographyBaseUrl);
   }
 
+  // trim and persist; remove key when null
   Future<void> setPolysomnographyBaseUrl(String? url) async {
     final trimmed = url?.trim();
     polysomnographyBaseUrl.value =
@@ -72,12 +78,14 @@ class SettingsController extends GetxController {
     }
   }
 
+  // load from SharedPreferences; value may be null
   Future<void> loadRecordingDirectory() async {
     final prefs = await SharedPreferences.getInstance();
     final path = prefs.getString(keyRecordingDirectory);
     recordingDirectory.value = path;
   }
 
+  // persist or remove when null
   Future<void> setRecordingDirectory(String? path) async {
     recordingDirectory.value = path;
     final prefs = await SharedPreferences.getInstance();
@@ -88,6 +96,7 @@ class SettingsController extends GetxController {
     }
   }
 
+  // only apply if value > 0
   Future<void> loadRotationInterval() async {
     final prefs = await SharedPreferences.getInstance();
     final value = prefs.getInt(keyRotationIntervalMinutes);
@@ -96,12 +105,14 @@ class SettingsController extends GetxController {
     }
   }
 
+  // persist rotation interval for CSV file splitting
   Future<void> setRotationIntervalMinutes(int minutes) async {
     rotationIntervalMinutes.value = minutes;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(keyRotationIntervalMinutes, minutes);
   }
 
+  // only apply if value >= 0
   Future<void> loadLastSessionNumber() async {
     final prefs = await SharedPreferences.getInstance();
     final value = prefs.getInt(keyLastSessionNumber);
@@ -110,6 +121,7 @@ class SettingsController extends GetxController {
     }
   }
 
+  // clamp to >= 0 and persist
   Future<void> setLastSessionNumber(int value) async {
     final clamped = value < 0 ? 0 : value;
     lastSessionNumber.value = clamped;
@@ -117,6 +129,7 @@ class SettingsController extends GetxController {
     await prefs.setInt(keyLastSessionNumber, clamped);
   }
 
+  // atomically increment and persist session counter
   Future<int> getNextSessionNumber() async {
     final prefs = await SharedPreferences.getInstance();
     final current = prefs.getInt(keyLastSessionNumber) ?? 0;
@@ -126,6 +139,7 @@ class SettingsController extends GetxController {
     return next;
   }
 
+  // parse stored string to DataFormat enum; fallback to int24Be
   Future<void> loadDataFormat() async {
     final prefs = await SharedPreferences.getInstance();
     final stored = prefs.getString(keyDataFormat);
@@ -137,12 +151,14 @@ class SettingsController extends GetxController {
     }
   }
 
+  // persist format; used by recording and parser
   Future<void> setDataFormat(DataFormat format) async {
     dataFormat.value = format;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(keyDataFormat, format.name);
   }
 
+  // only accept .txt or .csv
   Future<void> loadRecordingFileExtension() async {
     final prefs = await SharedPreferences.getInstance();
     final stored = prefs.getString(keyRecordingFileExtension);
@@ -151,6 +167,7 @@ class SettingsController extends GetxController {
     }
   }
 
+  // validate .txt or .csv before persist
   Future<void> setRecordingFileExtension(String ext) async {
     if (ext != '.txt' && ext != '.csv') return;
     recordingFileExtension.value = ext;
@@ -158,6 +175,7 @@ class SettingsController extends GetxController {
     await prefs.setString(keyRecordingFileExtension, ext);
   }
 
+  // only apply if 1..8
   Future<void> loadRecordingChannelCount() async {
     final prefs = await SharedPreferences.getInstance();
     final value = prefs.getInt(keyRecordingChannelCount);
@@ -166,6 +184,7 @@ class SettingsController extends GetxController {
     }
   }
 
+  // clamp to 1..8 and persist
   Future<void> setRecordingChannelCount(int count) async {
     final clamped = count.clamp(1, 8);
     recordingChannelCount.value = clamped;
@@ -173,6 +192,7 @@ class SettingsController extends GetxController {
     await prefs.setInt(keyRecordingChannelCount, clamped);
   }
 
+  // only apply if within min..max from RecordingConstants
   Future<void> loadSamplingRate() async {
     final prefs = await SharedPreferences.getInstance();
     final value = prefs.getInt(keySamplingRateHz);
@@ -183,6 +203,7 @@ class SettingsController extends GetxController {
     }
   }
 
+  // clamp to valid range and persist
   Future<void> setSamplingRate(int hz) async {
     final clamped = hz.clamp(
       RecordingConstants.samplingRateMinHz,
@@ -193,48 +214,50 @@ class SettingsController extends GetxController {
     await prefs.setInt(keySamplingRateHz, clamped);
   }
 
+  // null when controller not yet registered (e.g. app init)
   BleController? get bleController =>
       Get.isRegistered<BleController>() ? Get.find<BleController>() : null;
 
+  // BLE: apply current sampling rate to connected device
   Future<bool> applySamplingRateToDevice() async {
     final ble = bleController;
     if (ble == null) return false;
     return ble.sendCommand(BleConstants.cmdSetSamplingRate(samplingRateHz.value));
   }
 
+  // BLE: ping device
   Future<bool> sendPing() async {
     final ble = bleController;
     if (ble == null) return false;
     return ble.sendCommand(BleConstants.cmdPing);
   }
 
+  // BLE: start EEG data transmission
   Future<bool> sendStartTransmission() async {
     final ble = bleController;
     if (ble == null) return false;
     return ble.sendCommand(BleConstants.cmdStartTransmission);
   }
 
+  // BLE: stop EEG data transmission
   Future<bool> sendStopTransmission() async {
     final ble = bleController;
     if (ble == null) return false;
     return ble.sendCommand(BleConstants.cmdStopTransmission);
   }
 
-  /// Resets the session counter for a specific date.
-  /// This is called when a date folder is deleted.
+  // resets counter when date folder deleted (last session date was this date)
   Future<void> resetSessionCounterForDate(String date) async {
     final prefs = await SharedPreferences.getInstance();
     final lastDate = prefs.getString(RecordingConstants.keyLastSessionDate);
     if (lastDate == date) {
-      // If the deleted date was the last session date, reset the counter
       await prefs.remove(RecordingConstants.keyLastSessionDate);
       await prefs.setInt(keyLastSessionNumber, 0);
       lastSessionNumber.value = 0;
     }
   }
 
-  /// Recalculates the maximum session number for a given parent directory path.
-  /// Returns the maximum session number found in that directory.
+  // scans session_N folders in parent; returns max session index
   Future<int> recalculateSessionNumber(String parentPath) async {
     final dir = Directory(parentPath);
     if (!await dir.exists()) return 0;

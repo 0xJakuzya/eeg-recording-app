@@ -1,14 +1,15 @@
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 
-/// Foreground service for EEG recording.
-/// Keeps the app alive when minimized or screen is locked.
+// keeps app alive when minimized or screen locked during recording
 bool foregroundTaskInited = false;
 
+// required for isolate entry; do not rename
 @pragma('vm:entry-point')
 void startEegForegroundCallback() {
   FlutterForegroundTask.setTaskHandler(EegForegroundTaskHandler());
 }
 
+// minimal handler; only onNotificationPressed implemented (launch app)
 class EegForegroundTaskHandler extends TaskHandler {
   @override
   Future<void> onStart(DateTime timestamp, TaskStarter starter) async {}
@@ -25,6 +26,7 @@ class EegForegroundTaskHandler extends TaskHandler {
   @override
   void onNotificationButtonPressed(String id) {}
 
+  // tap notification → launch app
   @override
   void onNotificationPressed() {
     FlutterForegroundTask.launchApp();
@@ -34,6 +36,7 @@ class EegForegroundTaskHandler extends TaskHandler {
   void onNotificationDismissed() {}
 }
 
+// init notification channel and task options; one-time
 Future<void> ensureEegForegroundTaskInited() async {
   if (foregroundTaskInited) return;
   final notifPerm =
@@ -61,6 +64,7 @@ Future<void> ensureEegForegroundTaskInited() async {
   foregroundTaskInited = true;
 }
 
+// starts foreground service; shows persistent notification
 Future<void> startEegForegroundService() async {
   await ensureEegForegroundTaskInited();
   await FlutterForegroundTask.startService(
@@ -71,11 +75,12 @@ Future<void> startEegForegroundService() async {
   );
 }
 
+// stops foreground service
 Future<void> stopEegForegroundService() async {
   await FlutterForegroundTask.stopService();
 }
 
-/// Stops foreground service if still running after app restart (e.g. after crash).
+// stops leftover service from previous run (e.g. crash); call at startup
 Future<void> stopOrphanedForegroundServiceIfNeeded() async {
   try {
     final isRunning = await FlutterForegroundTask.isRunningService;
