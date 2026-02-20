@@ -45,6 +45,8 @@ This application is intended for:
 - Sliding window (3 / 5 / 10 seconds)
 - Adjustable amplitude scaling
 
+![EEG plots demo](assets/video_plots.MP4)
+
 ### File Management
 
 - Session and directory browsing
@@ -177,12 +179,12 @@ lib/
 │       └── recording_models.dart
 │
 └── features/
-    ├── ble/                             # BLE-connection
-    ├── recording/                       # Recroding and vizualizartion EEG
-    ├── files/                           # Files Manage
-    ├── polysomnography/                 # Integration Polysomnography Server
+    ├── ble/                             # BLE connection
+    ├── recording/                       # Recording and EEG visualization
+    ├── files/                           # File management
+    ├── polysomnography/                 # Polysomnography server integration
     ├── settings/                        # Settings: EEG, Server, BLE, Files Manager
-    └── navigation/                      # Navigation
+    └── navigation/                      # App navigation
 ```
 
 ## Dependencies
