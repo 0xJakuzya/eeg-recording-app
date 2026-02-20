@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ble_app/core/constants/ble_constants.dart';
@@ -217,5 +218,40 @@ class SettingsController extends GetxController {
     final ble = bleController;
     if (ble == null) return false;
     return ble.sendCommand(BleConstants.cmdStopTransmission);
+  }
+
+  /// Resets the session counter for a specific date.
+  /// This is called when a date folder is deleted.
+  Future<void> resetSessionCounterForDate(String date) async {
+    final prefs = await SharedPreferences.getInstance();
+    final lastDate = prefs.getString(RecordingConstants.keyLastSessionDate);
+    if (lastDate == date) {
+      // If the deleted date was the last session date, reset the counter
+      await prefs.remove(RecordingConstants.keyLastSessionDate);
+      await prefs.setInt(keyLastSessionNumber, 0);
+      lastSessionNumber.value = 0;
+    }
+  }
+
+  /// Recalculates the maximum session number for a given parent directory path.
+  /// Returns the maximum session number found in that directory.
+  Future<int> recalculateSessionNumber(String parentPath) async {
+    final dir = Directory(parentPath);
+    if (!await dir.exists()) return 0;
+
+    int maxSession = 0;
+    final sessionFolderPattern = RegExp(r'^session_(\d+)$');
+
+    await for (final entity in dir.list(recursive: false, followLinks: false)) {
+      if (entity is! Directory) continue;
+      final sessionName = entity.path.split(Platform.pathSeparator).last;
+      final match = sessionFolderPattern.firstMatch(sessionName);
+      if (match != null) {
+        final n = int.tryParse(match.group(1) ?? '0') ?? 0;
+        if (n > maxSession) maxSession = n;
+      }
+    }
+
+    return maxSession;
   }
 }

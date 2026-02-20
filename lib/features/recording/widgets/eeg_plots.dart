@@ -11,6 +11,8 @@ class EegDataPoint {
 
 class EegLineChart extends StatelessWidget {
   final List<List<EegDataPoint>> channelData;
+  /// Зафиксированный след (отображается блекло)
+  final List<List<EegDataPoint>> persistedChannelData;
   final double windowSeconds;
   final double amplitudeScale;
   final double displayRange;
@@ -18,6 +20,7 @@ class EegLineChart extends StatelessWidget {
   const EegLineChart({
     super.key,
     required this.channelData,
+    this.persistedChannelData = const [],
     required this.windowSeconds,
     this.amplitudeScale = 1.0,
     required this.displayRange,
@@ -25,7 +28,9 @@ class EegLineChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final int numChannels = channelData.length;
+    final int numChannels = channelData.isNotEmpty
+        ? channelData.length
+        : persistedChannelData.length;
     if (numChannels == 0) {
       return Center(
         child: Text(
@@ -49,26 +54,63 @@ class EegLineChart extends StatelessWidget {
     final double maxX = effectiveWindow;
 
     final List<LineChartBarData> lineBarsData = [];
+    final persistedColor = Colors.grey.shade400;
 
     for (int order = 0; order < channelIndices.length; order++) {
       final int ch = channelIndices[order];
       final double centerY = order * channelStep;
       final double range = displayRange;
 
-      final spots = channelData[ch].map((point) {
-        final norm = (point.amplitude / range).clamp(-1.0, 1.0);
-        final x = point.time.clamp(0.0, effectiveWindow);
-        return FlSpot(
-          x,
-          centerY + amplitudeScale * norm * halfHeight,
+      final maxCurrentX = ch < channelData.length && channelData[ch].isNotEmpty
+          ? channelData[ch]
+              .map((p) => p.time)
+              .fold(0.0, (a, b) => a > b ? a : b)
+          : 0.0;
+
+      if (ch < persistedChannelData.length &&
+          persistedChannelData[ch].isNotEmpty) {
+        final persistedSpots = persistedChannelData[ch]
+            .where((p) => p.time > maxCurrentX && p.time <= effectiveWindow)
+            .map((point) {
+          final norm = (point.amplitude / range).clamp(-1.0, 1.0);
+          final x = point.time.clamp(0.0, effectiveWindow);
+          return FlSpot(
+            x,
+            centerY + amplitudeScale * norm * halfHeight,
+          );
+        }).toList();
+        lineBarsData.add(
+          LineChartBarData(
+            spots: persistedSpots,
+            isCurved: true,
+            color: persistedColor,
+            dotData: const FlDotData(show: false),
+            belowBarData: BarAreaData(show: false),
+            barWidth: 1.0,
+          ),
         );
-      }).toList();
+      }
+
+      final currentSpots =
+          ch < channelData.length && channelData[ch].isNotEmpty
+              ? channelData[ch]
+                  .where((p) => p.time >= 0 && p.time <= effectiveWindow)
+                  .map((point) {
+                  final norm = (point.amplitude / range).clamp(-1.0, 1.0);
+                  final x = point.time.clamp(0.0, effectiveWindow);
+                  return FlSpot(
+                    x,
+                    centerY + amplitudeScale * norm * halfHeight,
+                  );
+                }).toList()
+              : <FlSpot>[];
 
       final channelColor =
           AppTheme.eegChannelColors[ch % AppTheme.eegChannelColors.length];
+
       lineBarsData.add(
         LineChartBarData(
-          spots: spots,
+          spots: currentSpots,
           isCurved: true,
           curveSmoothness: 0.1,
           color: channelColor,
@@ -94,6 +136,7 @@ class EegLineChart extends StatelessWidget {
       padding: const EdgeInsets.all(8),
       child: LineChart(
         LineChartData(
+          lineTouchData: const LineTouchData(enabled: false),
           lineBarsData: lineBarsData,
           minY: minY,
           maxY: maxY,
@@ -102,7 +145,8 @@ class EegLineChart extends StatelessWidget {
           titlesData: FlTitlesData(
             bottomTitles: AxisTitles(
               axisNameWidget: const Text('Время (с)',
-                  style: TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
+                  style:
+                      TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
               sideTitles: SideTitles(
                 showTitles: true,
                 reservedSize: 30,
@@ -113,7 +157,8 @@ class EegLineChart extends StatelessWidget {
             ),
             leftTitles: AxisTitles(
               axisNameWidget: const Text('Каналы',
-                  style: TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
+                  style:
+                      TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
               sideTitles: SideTitles(
                 showTitles: true,
                 reservedSize: 48,
@@ -152,6 +197,7 @@ class EegLineChart extends StatelessWidget {
             ),
           ),
         ),
+        duration: Duration.zero,
       ),
     );
   }

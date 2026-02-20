@@ -1,5 +1,5 @@
-/// Model representing a single EEG data sample.
-/// Contains timestamp and voltage values for multiple channels (1-8).
+// Model representing a single EEG data sample.
+// Contains timestamp and voltage values for multiple channels (1-8).
 class EegSample {
   final DateTime timestamp;
   final List<double> channels;

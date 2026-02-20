@@ -1,4 +1,5 @@
 import 'dart:io';
+
 import 'package:path_provider/path_provider.dart';
 import 'package:ble_app/core/constants/recording_constants.dart';
 import 'package:ble_app/core/common/eeg_sample.dart';
@@ -18,12 +19,13 @@ class CsvStreamWriter {
   String fileExtension;
 
   final List<String> buffer = [];
+  bool outputVolts = false;
   final Duration rotationInterval;
   DateTime? currentFileStartedAt;
   int partIndex = 1;
 
   CsvStreamWriter({
-    this.channelCount = 1,
+    this.channelCount = 8,
     required this.rotationInterval,
     this.outputVolts = false,
     this.fileExtension = '.txt',
@@ -34,6 +36,7 @@ class CsvStreamWriter {
     partIndex = 1;
     baseFilename = filename;
     this.baseDirectory = baseDirectory;
+
     await openNewFile();
   }
 
@@ -77,6 +80,7 @@ class CsvStreamWriter {
       base = originalName;
       ext = fileExtension;
     }
+
     final datePart = startedAt.format('dd.MM.yyyy');
     final timePart = startedAt.format('HH-mm');
     return '${base}_${datePart}_$timePart$ext';
@@ -98,7 +102,6 @@ class CsvStreamWriter {
     checkRotation();
     if (buffer.length >= RecordingConstants.csvBufferSize) flushBuffer();
   }
-
   void writeRawData(DateTime timestamp, List<double> channels) {
     final sample = EegSample(timestamp: timestamp, channels: channels);
     writeSample(sample);
@@ -146,6 +149,7 @@ class CsvStreamWriter {
     sink = null;
     file = null;
     partIndex++;
+    sampleCounter = 0;
     await openNewFile();
   }
 

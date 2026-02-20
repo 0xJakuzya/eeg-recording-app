@@ -1,55 +1,53 @@
 import 'package:flutter/material.dart';
 
-/// Centralized theme constants for EEG Recording App.
-/// Dark-first, neurotech/medical minimal high-tech style.
+// сentralized theme constants for EEG Recording App.
 class AppTheme {
   AppTheme._();
 
-  // Backgrounds
+  // backgrounds
   static const Color backgroundPrimary = Color(0xFF0D0D12);
   static const Color backgroundSecondary = Color(0xFF12121A);
   static const Color backgroundSurface = Color(0xFF1A1A24);
 
-  // Accents (dark blue → purple gradient)
+  // accents (dark blue → purple gradient)
   static const Color accentPrimary = Color(0xFF4F46E5);
   static const Color accentSecondary = Color(0xFF6366F1);
   static const Color accentTertiary = Color(0xFF7C3AED);
   static const Color accentViolet = Color(0xFFA78BFA);
 
-  // Glow/Status colors
+  // glow/status colors
   static const Color statusConnected = Color(0xFF22D3EE); // cyan/teal
   static const Color statusRecording = Color(0xFFEF4444); // red
   static const Color statusPredictionReady = Color(0xFF22C55E); // green
   static const Color statusFailed = Color(0xFFEF4444);
 
-  // Text
+  // text
   static const Color textPrimary = Color(0xFFF8FAFC);
   static const Color textSecondary = Color(0xFF94A3B8);
   static const Color textMuted = Color(0xFF64748B);
 
-  // Border / Divider
+  // border / divider
   static const Color borderSubtle = Color(0xFF27272A);
   static const Color gridLine = Color(0x14FFFFFF);
 
-  // EEG channel colors (dark background palette)
+  // eeg channel colors 
   static const List<Color> eegChannelColors = [
-    Color(0xFF22D3EE), // cyan
-    Color(0xFF2DD4BF), // teal
-    Color(0xFF3B82F6), // blue
-    Color(0xFF6366F1), // indigo
-    Color(0xFF8B5CF6), // violet
-    Color(0xFFA78BFA), // light violet
-    Color(0xFF06B6D4), // cyan alt
-    Color(0xFF14B8A6), // teal alt
+    Color(0xFF22D3EE), 
+    Color(0xFF2DD4BF), 
+    Color(0xFF3B82F6), 
+    Color(0xFF6366F1), 
+    Color(0xFF8B5CF6), 
+    Color(0xFFA78BFA), 
+    Color(0xFF06B6D4), 
+    Color(0xFF14B8A6), 
   ];
 
-  // Sleep stage colors (hypnogram)
-  static const Color stageW = Color(0xFF64748B); // gray
-  static const Color stageN1 = Color(0xFF7DD3FC); // light blue
-  static const Color stageN2 = Color(0xFF3B82F6); // blue
-  static const Color stageN3 = Color(0xFF1D4ED8); // dark blue
-  static const Color stageREM = Color(0xFF8B5CF6); // violet
-
+  // sleep stage colors (hypnogram)
+  static const Color stageW = Color(0xFF64748B); 
+  static const Color stageN1 = Color(0xFF7DD3FC); 
+  static const Color stageN2 = Color(0xFF3B82F6); 
+  static const Color stageN3 = Color(0xFF1D4ED8); 
+  static const Color stageREM = Color(0xFF8B5CF6); 
   static Color getStageColor(String stage) {
     switch (stage.toUpperCase()) {
       case 'W':
@@ -67,6 +65,7 @@ class AppTheme {
     }
   }
 
+  // Dark Theme
   static ThemeData get darkTheme {
     const colorScheme = ColorScheme.dark(
       primary: accentPrimary,

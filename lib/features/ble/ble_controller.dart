@@ -117,6 +117,7 @@ class BleController extends GetxController {
     selectedDataCharUuid.value = null;
   }
 
+  /// Command characteristic for EEG_Device (UUID fff2)
   BluetoothCharacteristic? get commandCharacteristic {
     for (final service in services) {
       for (final c in service.characteristics) {
