@@ -197,7 +197,7 @@ class EegLineChart extends StatelessWidget {
             ),
           ),
         ),
-        duration: Duration.zero,
+        duration: const Duration(milliseconds: 250),
       ),
     );
   }

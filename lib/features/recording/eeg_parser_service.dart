@@ -6,7 +6,7 @@ import 'package:ble_app/core/utils/format_extensions.dart';
 class EegParserService {
   EegParserService({
     this.channelCount = 1,
-    this.format = DataFormat.int8,
+    this.format = DataFormat.int24Be,
   });
 
   final int channelCount;
@@ -81,11 +81,6 @@ class EegParserService {
       if (baseIndex >= bytes.length) break;
       double value;
       switch (format) {
-        case DataFormat.int8:
-          int v = bytes[baseIndex];
-          if (v > 127) v -= 256;
-          value = v.toDouble();
-          break;
         case DataFormat.int24Be:
           if (baseIndex + 2 >= bytes.length) continue;
           final b0 = bytes[baseIndex];

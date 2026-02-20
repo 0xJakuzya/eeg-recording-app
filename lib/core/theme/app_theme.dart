@@ -51,6 +51,7 @@ class AppTheme {
   static Color getStageColor(String stage) {
     switch (stage.toUpperCase()) {
       case 'W':
+      case 'WAKE':
         return stageW;
       case 'N1':
         return stageN1;

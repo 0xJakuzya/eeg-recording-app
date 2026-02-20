@@ -19,7 +19,6 @@ class CsvStreamWriter {
   String fileExtension;
 
   final List<String> buffer = [];
-  bool outputVolts = false;
   final Duration rotationInterval;
   DateTime? currentFileStartedAt;
   int partIndex = 1;

@@ -12,10 +12,9 @@ class RecordingConstants {
   static const String keyRecordingDirectory = 'recording_directory';
   static const String keyRotationIntervalMinutes = 'recording_rotation_minutes';
   static const String keyLastSessionNumber = 'last_session_number';
-  static const String recordingFileExtension = '.txt';
+  static const String recordingFileExtension = '.txt'; // extension for recording in txt/csv
   static const List<String> recordingFileExtensions = ['.txt', '.csv'];
   static const String keyLastSessionDate = 'last_session_date';
-  static const String recordingFileExtension = '.txt'; // extension for recording in txt/csv
   static const String defaultRecordingBaseName = 'recording';
   
   static const int samplingRateMinHz = 100;

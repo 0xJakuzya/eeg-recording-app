@@ -61,24 +61,19 @@ extension DoubleHzFormatX on double {
 extension DataFormatX on DataFormat {
   int get bytesPerChannel {
     switch (this) {
-      case DataFormat.int8:
-        return 1;
       case DataFormat.int24Be:
         return 3;
     }
   }
   double get displayRange {
     switch (this) {
-      case DataFormat.int8:
-        return 128.0;
       case DataFormat.int24Be:
         return 1.2; // volts, ±Vref
     }
   }
-  bool get outputsVolts => this == DataFormat.int24Be;
+  bool get outputsVolts => true;
 }
 
 enum DataFormat {
-  int8,
   int24Be,
 }

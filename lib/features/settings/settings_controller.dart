@@ -28,7 +28,7 @@ class SettingsController extends GetxController {
   RxInt rotationIntervalMinutes =
       RxInt(RecordingConstants.defaultRotationIntervalMinutes);
   RxInt lastSessionNumber = RxInt(0);
-  Rx<DataFormat> dataFormat = DataFormat.int8.obs;
+  Rx<DataFormat> dataFormat = DataFormat.int24Be.obs;
   Rx<String> recordingFileExtension = '.txt'.obs;
   RxInt recordingChannelCount = RxInt(1);
   Rx<String?> polysomnographyBaseUrl = Rx<String?>(null);
@@ -132,7 +132,7 @@ class SettingsController extends GetxController {
     if (stored != null) {
       dataFormat.value = DataFormat.values.firstWhere(
         (f) => f.name == stored,
-        orElse: () => DataFormat.int8,
+        orElse: () => DataFormat.int24Be,
       );
     }
   }

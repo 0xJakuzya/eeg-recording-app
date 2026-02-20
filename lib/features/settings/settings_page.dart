@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:get/get.dart';
 import 'package:ble_app/features/ble/ble_controller.dart';
+import 'package:ble_app/features/polysomnography/polysomnography_service.dart';
 import 'package:ble_app/features/settings/settings_controller.dart';
 import 'package:ble_app/core/theme/app_theme.dart';
 import 'package:ble_app/core/constants/polysomnography_constants.dart';
@@ -141,8 +142,7 @@ class SettingsPage extends StatelessWidget {
 
   String getDataFormatLabel(DataFormat f) {
     return switch (f) {
-      DataFormat.int8 => 'int8 (−128..127)',
-      DataFormat.int24Be => 'int24 BE (Volts)',
+      DataFormat.int24Be => 'int24 BE (8 каналов)',
     };
   }
 
@@ -183,19 +183,52 @@ class SettingsPage extends StatelessWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Адрес сервера полисомнографии'),
-        content: TextField(
-          controller: controller,
-          decoration: const InputDecoration(
-            hintText: 'http://192.168.0.1:8000',
-            border: OutlineInputBorder(),
-          ),
-          keyboardType: TextInputType.url,
-          autofocus: true,
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            TextField(
+              controller: controller,
+              decoration: const InputDecoration(
+                hintText: 'http://192.168.0.173:8000',
+                border: OutlineInputBorder(),
+              ),
+              keyboardType: TextInputType.url,
+              autofocus: true,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Телефон и ПК с Docker должны быть в одной Wi‑Fi. Узнать IP ПК: ipconfig (Windows), ifconfig (Linux/Mac).',
+              style: TextStyle(
+                fontSize: 12,
+                color: Theme.of(ctx).colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: const Text('Отмена'),
+          ),
+          TextButton(
+            onPressed: () async {
+              final url = controller.text.trim();
+              if (url.isEmpty) return;
+              final svc = PolysomnographyApiService(baseUrl: url);
+              final err = await svc.checkConnection(url);
+              if (ctx.mounted) {
+                ScaffoldMessenger.of(ctx).showSnackBar(
+                  SnackBar(
+                    content: Text(err == null
+                        ? 'Подключение успешно'
+                        : 'Ошибка: $err'),
+                    backgroundColor: err == null ? Colors.green : null,
+                  ),
+                );
+              }
+            },
+            child: const Text('Проверить'),
           ),
           TextButton(
             onPressed: () async {
@@ -225,7 +258,6 @@ class SettingsPage extends StatelessWidget {
       context,
       title: 'Формат данных',
       items: [
-        PickerItem(DataFormat.int8, 'int8 (−128..127)'),
         PickerItem(DataFormat.int24Be, 'int24 BE (8 каналов)'),
       ],
     );

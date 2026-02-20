@@ -252,10 +252,17 @@ class PolysomnographyApiService {
       throw Exception('Ошибка предикта ${response.statusCode}: $detail');
     }
 
-    final decoded = jsonDecode(response.body);
-    if (decoded is! Map<String, dynamic>) {
+    dynamic decoded = jsonDecode(response.body);
+
+    // API может вернуть JSON-строку (schema "string") — парсим повторно
+    if (decoded is String) {
+      decoded = jsonDecode(decoded);
+    }
+
+    if (decoded is! Map) {
       throw Exception('Некорректный ответ сервера');
     }
+    final decodedMap = Map<String, dynamic>.from(decoded as Map);
 
     int? jsonIndex;
     Map<String, dynamic>? prediction;
@@ -273,15 +280,64 @@ class PolysomnographyApiService {
       if (prediction == null && m['prediction'] is Map) {
         prediction = Map<String, dynamic>.from(m['prediction'] as Map);
       }
+      if (prediction == null && m['result'] is Map) {
+        final res = m['result'] as Map;
+        if (res['prediction'] is Map) {
+          prediction = Map<String, dynamic>.from(res['prediction'] as Map);
+        }
+      }
     }
 
-    extractFrom(decoded);
-    final result = decoded['result'];
+    extractFrom(decodedMap);
+    final result = decodedMap['result'];
     if (result is Map) {
       extractFrom(Map<String, dynamic>.from(result));
     }
 
+    // Если prediction не найден — возможно, корневой объект и есть предикт
+    // (ключи: Wake, N1, N2, N3, REM; значения: списки интервалов [[start,end],...])
+    if (prediction == null && decodedMap.isNotEmpty) {
+      const knownStages = ['w', 'wake', 'n1', 'n2', 'n3', 'rem'];
+      final hasStageKeys = decodedMap.keys.any(
+          (k) => knownStages.contains(k.toString().toLowerCase()));
+      if (hasStageKeys) {
+        prediction = Map<String, dynamic>.from(decodedMap);
+      }
+    }
+
     return PredictResult(prediction: prediction, jsonIndex: jsonIndex);
+  }
+
+  /// Проверяет доступность сервера по baseUrl.
+  /// Возвращает null при успехе, иначе — текст ошибки.
+  Future<String?> checkConnection(String url) async {
+    final base = url.trim();
+    if (base.isEmpty) return 'Укажите адрес сервера';
+    String normalized = base;
+    if (!normalized.startsWith('http://') && !normalized.startsWith('https://')) {
+      normalized = 'http://$normalized';
+    }
+    if (normalized.endsWith('/')) normalized = normalized.substring(0, normalized.length - 1);
+    try {
+      final uri = Uri.parse(normalized);
+      final response = await http.get(uri).timeout(
+        const Duration(seconds: 5),
+        onTimeout: () => throw Exception('Превышено время ожидания (5 сек)'),
+      );
+      if (response.statusCode >= 200 && response.statusCode < 500) {
+        return null;
+      }
+      return 'Сервер ответил: ${response.statusCode}';
+    } catch (e) {
+      final msg = e.toString();
+      if (msg.contains('SocketException') || msg.contains('Connection refused')) {
+        return 'Сервер недоступен. Проверьте:\n• Телефон и ПК в одной Wi‑Fi\n• IP и порт (например :8000)\n• Firewall на ПК\n• Docker: docker run -p 8000:8000 ...';
+      }
+      if (msg.contains('timeout') || msg.contains('Превышено')) {
+        return 'Таймаут. Сервер не отвечает за 5 сек.';
+      }
+      return msg.length > 80 ? '${msg.substring(0, 80)}...' : msg;
+    }
   }
 
   Future<List<int>> fetchSleepGraphImage(

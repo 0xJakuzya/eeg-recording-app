@@ -182,10 +182,16 @@ class HypnogramErrorContent extends StatelessWidget {
 }
 
 class HypnogramCard extends StatelessWidget {
-  const HypnogramCard({super.key, required this.title, required this.child});
+  const HypnogramCard({
+    super.key,
+    required this.title,
+    required this.child,
+    this.pieChartWidget,
+  });
 
   final String title;
   final Widget child;
+  final Widget? pieChartWidget;
 
   @override
   Widget build(BuildContext context) {
@@ -210,9 +216,24 @@ class HypnogramCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           SizedBox(
-            height: MediaQuery.of(context).size.height * 0.4,
+            height: MediaQuery.of(context).size.height * 0.35,
             child: child,
           ),
+          if (pieChartWidget != null) ...[
+            const SizedBox(height: 16),
+            const Divider(color: AppTheme.borderSubtle),
+            const SizedBox(height: 12),
+            const Text(
+              'Распределение стадий сна',
+              style: TextStyle(
+                color: AppTheme.textPrimary,
+                fontWeight: FontWeight.w600,
+                fontSize: 16,
+              ),
+            ),
+            const SizedBox(height: 12),
+            pieChartWidget!,
+          ],
         ],
       ),
     );
@@ -226,16 +247,12 @@ class SessionDetailsPage extends StatelessWidget {
     required this.prediction,
     required this.jsonIndex,
     required this.service,
-    this.patientId,
-    this.fileIndex,
   });
 
   final String fileName;
   final Map<String, dynamic>? prediction;
   final int jsonIndex;
   final PolysomnographyApiService service;
-  final int? patientId;
-  final int? fileIndex;
 
   @override
   Widget build(BuildContext context) {
@@ -244,57 +261,19 @@ class SessionDetailsPage extends StatelessWidget {
     final hypnogramWidget =
         HypnogramImage(service: service, index: jsonIndex);
 
-    final verificationCard = Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppTheme.backgroundSurface.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppTheme.borderSubtle),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Данные для проверки соответствия',
-            style: TextStyle(
-              color: AppTheme.textSecondary,
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text('Файл: $fileName',
-              style: const TextStyle(color: AppTheme.textPrimary, fontSize: 14)),
-          if (patientId != null)
-            Text('Пациент ID: $patientId',
-                style: const TextStyle(
-                    color: AppTheme.textSecondary, fontSize: 13)),
-          if (fileIndex != null)
-            Text('Индекс файла: $fileIndex',
-                style: const TextStyle(
-                    color: AppTheme.textSecondary, fontSize: 13)),
-          Text(
-            'Индекс sleep_graph: $jsonIndex (глобальный счётчик)',
-            style: const TextStyle(color: AppTheme.accentSecondary, fontSize: 13),
-          ),
-        ],
-      ),
-    );
-
     if (pred == null || pred.isEmpty) {
       return Scaffold(
         appBar: AppBar(title: Text(fileName)),
         body: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            verificationCard,
             HypnogramCard(title: 'Гипнограмма', child: hypnogramWidget),
             const Center(
               child: Padding(
                 padding: EdgeInsets.all(24),
                 child: Text(
-                  'Данных предикта для этого файла пока нет',
+                  'Данных предикта для этого файла пока нет.\nСервер должен вернуть prediction в ответе save_predict_json.',
+                  textAlign: TextAlign.center,
                   style: TextStyle(color: AppTheme.textSecondary),
                 ),
               ),
@@ -304,106 +283,17 @@ class SessionDetailsPage extends StatelessWidget {
       );
     }
 
-    final List<Widget> children = <Widget>[
-      verificationCard,
-      HypnogramCard(
-          title: 'Гипнограмма (индекс: $jsonIndex)', child: hypnogramWidget),
-      Container(
-        margin: const EdgeInsets.only(bottom: 16),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: AppTheme.backgroundSurface,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppTheme.borderSubtle),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Распределение стадий сна',
-              style: TextStyle(
-                color: AppTheme.textPrimary,
-                fontWeight: FontWeight.w600,
-                fontSize: 16,
-              ),
-            ),
-            const SizedBox(height: 12),
-            SleepStagesPieChart(prediction: pred),
-          ],
-        ),
-      ),
-    ];
-
-    children.addAll(
-      pred.entries.map((entry) {
-        final stage = entry.key;
-        final intervals = entry.value;
-        final stageColor = AppTheme.getStageColor(stage);
-
-        final List<Widget> chips = <Widget>[];
-        if (intervals is List) {
-          for (final interval in intervals) {
-            if (interval is List && interval.length >= 2) {
-              final start = interval[0];
-              final end = interval[1];
-              chips.add(
-                Chip(
-                  label: Text('$start–$end с'),
-                  backgroundColor: stageColor.withValues(alpha: 0.2),
-                  side: BorderSide(color: stageColor.withValues(alpha: 0.5)),
-                  labelStyle: const TextStyle(color: AppTheme.textPrimary),
-                ),
-              );
-            }
-          }
-        }
-
-        return Container(
-          margin: const EdgeInsets.only(bottom: 12),
-          decoration: BoxDecoration(
-            color: AppTheme.backgroundSurface,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: stageColor.withValues(alpha: 0.4),
-            ),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  stage,
-                  style: TextStyle(
-                    color: stageColor,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 16,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                if (chips.isEmpty)
-                  const Text(
-                    'Интервалы отсутствуют',
-                    style: TextStyle(color: AppTheme.textSecondary),
-                  )
-                else
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: chips,
-                  ),
-              ],
-            ),
-          ),
-        );
-      }),
-    );
-
     return Scaffold(
       appBar: AppBar(title: Text(fileName)),
       body: ListView(
         padding: const EdgeInsets.all(16),
-        children: children,
+        children: [
+          HypnogramCard(
+            title: 'Гипнограмма',
+            child: hypnogramWidget,
+            pieChartWidget: SleepStagesPieChart(prediction: pred!),
+          ),
+        ],
       ),
     );
   }

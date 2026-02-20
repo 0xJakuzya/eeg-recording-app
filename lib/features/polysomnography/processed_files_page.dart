@@ -219,7 +219,6 @@ class ProcessedFilesPageState extends State<ProcessedFilesPage>
   Future<void> openDetails(
       PatientFileInfo file, FileProcessState state) async {
     final result = state.result!;
-    final patientId = int.tryParse(patientIdController.text.trim());
     final sleepGraphIndex =
         state.sleepGraphIndex ?? result.jsonIndex ?? file.index;
 
@@ -231,8 +230,6 @@ class ProcessedFilesPageState extends State<ProcessedFilesPage>
           prediction: result.prediction,
           jsonIndex: sleepGraphIndex,
           service: polysomnographyService,
-          patientId: patientId,
-          fileIndex: file.index,
         ),
       ),
     );
@@ -417,7 +414,7 @@ class ProcessedFilesPageState extends State<ProcessedFilesPage>
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          'Индекс файла: ${file.index}  •  sleep_graph: ${state.sleepGraphIndex ?? "—"}  •  ${getStatusLabel(state.status)}',
+                          getStatusLabel(state.status),
                           style: const TextStyle(
                             color: AppTheme.textSecondary,
                             fontSize: 13,
