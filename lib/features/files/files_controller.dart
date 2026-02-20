@@ -114,6 +114,7 @@ class FilesController {
         }
       }
     }
+    await syncSessionCounter();
   }
 
   static final sessionFolderPattern = RegExp(r'^session_(\d+)$');
