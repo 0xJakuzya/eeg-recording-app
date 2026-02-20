@@ -52,13 +52,13 @@ class RecordingController extends GetxController {
           ? rotationMinutes
           : RecordingConstants.defaultRotationIntervalMinutes,
     );
-    final writeChannels = format == DataFormat.int24Be
-        ? RecordingConstants.csvWriteChannelCount.clamp(1, 8)
-        : 1;
+    final writeChannels =
+        settingsController.recordingChannelCount.value.clamp(1, 8);
     csvWriter = CsvStreamWriter(
       channelCount: writeChannels,
       rotationInterval: rotation,
       outputVolts: format.outputsVolts,
+      fileExtension: settingsController.recordingFileExtension.value,
     );
     parser = EegParserService(
       channelCount: format == DataFormat.int24Be ? 8 : channels,
@@ -134,7 +134,7 @@ class RecordingController extends GetxController {
       return EegSample(timestamp: rawSample.timestamp, channels: [filteredValue]);
     }
 
-    final maxCh = RecordingConstants.csvWriteChannelCount.clamp(1, 8);
+    final maxCh = settingsController.recordingChannelCount.value.clamp(1, 8);
     final filteredChannels = <double>[];
     for (int i = 0; i < rawSample.channels.length && i < maxCh; i++) {
       filteredChannels.add(

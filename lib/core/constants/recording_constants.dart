@@ -14,6 +14,7 @@ class RecordingConstants {
   static const String keyRotationIntervalMinutes = 'recording_rotation_minutes';
   static const String keyLastSessionNumber = 'last_session_number';
   static const String recordingFileExtension = '.txt';
+  static const List<String> recordingFileExtensions = ['.txt', '.csv'];
   static const String defaultRecordingBaseName = 'recording';
 
   /// Диапазон и значение по умолчанию частоты дискретизации (Гц).
