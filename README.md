@@ -9,8 +9,6 @@
 
 This is a mobile Flutter app for recording EEG data from a BLE device. It allows you to manage recording sessions and connect to a polysomnography service (upload data, start processing, and view a hypnogram).
 
-![EEG plots demo](assets/video_plots.gif)
-
 ## Features
 - BLE: scan devices, connect, check connection status, send commands
 - Recording: record data stream to a file with buffering and time splitting, background recording (Android foreground service)
@@ -41,7 +39,11 @@ flutter test
 3. Files are saved in the selected folder (see “Settings → Recording”) and are split automatically by time.
 4. On the files page, you can open, delete, share files, or send them to the polysomnography service.
 
-## Настройки
+## Vizualization
+
+![EEG plots demo](assets/video_plots.gif)
+
+## Settings
 
 Settings are available in the Settings page:
 
