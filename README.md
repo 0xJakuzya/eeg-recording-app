@@ -15,7 +15,7 @@ This is a mobile Flutter app for recording EEG data from a BLE device. It allows
 - Visualization: real-time signal graph
 - Files: view sessions and folders, delete, share, open TXT/CSV files
 - Polysomnography: upload recordings, start processing, view hypnogram and intervals
-- 
+
 ## Quick start
 
 **Requirements:** Flutter SDK (Dart ^3.10.7), a device or emulator with Bluetooth LE, and a sleep analysis service based on the AttnSleep neural network.
