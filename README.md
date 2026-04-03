@@ -1,20 +1,26 @@
 # EEG Recording App 
 
-Мобильное Flutter‑приложение для записи ЭЭГ с BLE‑устройства, управления сессиями записи и интеграции с сервисом полисомнографии (загрузка данных, запуск обработки и просмотр гипнограммы).
+![Flutter](https://img.shields.io/badge/Flutter-3.x-blue)
+![Dart](https://img.shields.io/badge/Dart-3.10-blue)
+![BLE](https://img.shields.io/badge/BLE-supported-green)
+![Android](https://img.shields.io/badge/Android-foreground%20service-brightgreen)
+![EEG](https://img.shields.io/badge/EEG-recording-orange)
+![Polysomnography](https://img.shields.io/badge/Polysomnography-AttnSleep-purple)
+
+This is a mobile Flutter app for recording EEG data from a BLE device. It allows you to manage recording sessions and connect to a polysomnography service (upload data, start processing, and view a hypnogram).
 
 ![EEG plots demo](assets/video_plots.gif)
 
-## Возможности
+## Features
+- BLE: scan devices, connect, check connection status, send commands
+- Recording: record data stream to a file with buffering and time splitting, background recording (Android foreground service)
+- Visualization: real-time signal graph
+- Files: view sessions and folders, delete, share, open TXT/CSV files
+- Polysomnography: upload recordings, start processing, view hypnogram and intervals
+- 
+## Quick start
 
-- BLE: сканирование, подключение, мониторинг состояния соединения, отправка команд устройству
-- Запись: потоковая запись в файл с буферизацией и ротацией по времени, запись в фоне (Android foreground service)
-- Визуализация: график сигнала в реальном времени
-- Файлы: просмотр сессий/директорий, удаление, шаринг, просмотр содержимого TXT/CSV
-- Полисомнография: загрузка записей на сервер, запуск обработки, отображение гипнограммы/интервалов
-
-## Быстрый старт
-
-**Требования:** Flutter SDK (Dart `^3.10.7`), устройство/эмулятор с поддержкой Bluetooth LE.
+**Requirements:** Flutter SDK (Dart ^3.10.7), a device or emulator with Bluetooth LE, and a sleep analysis service based on the AttnSleep neural network.
 
 ```bash
 flutter pub get
@@ -28,30 +34,29 @@ flutter analyze
 flutter test
 ```
 
-## Как пользоваться (коротко)
+## How to use
 
-1. Откройте страницу BLE, найдите устройство и подключитесь.
-2. На странице записи запустите запись (приложение подписывается на notify/indicate‑характеристику и отправляет команды `start/stop`).
-3. Записи сохраняются в выбранную папку (см. «Настройки → Запись»), автоматически разбиваются по интервалу ротации.
-4. На странице файлов можно открыть/удалить/поделиться файлами и отправить запись в сервис полисомнографии.
+1. Open the BLE page, find your device, and connect.
+2. Go to the recording page and start recording (the app subscribes to BLE notifications and sends start/stop commands).
+3. Files are saved in the selected folder (see “Settings → Recording”) and are split automatically by time.
+4. On the files page, you can open, delete, share files, or send them to the polysomnography service.
 
 ## Настройки
 
-Настройки доступны в приложении (страница **Настройки**):
+Settings are available in the Settings page:
 
-- **Папка для записей**: кастомный путь или Documents‑директория приложения
-- **Частота дискретизации**: 100 / 250 / 500 Гц (команды `d100`, `d250`, `d500`)
-- **Интервал разбиения**: ротация файла по времени (по умолчанию 20 минут)
-- **Формат записи**:
-  - `.csv` — CSV с полями BLE‑пакета и рассчитанным напряжением
-  - `.txt` — тот же CSV, но с расширением `.txt`
-  - `polysomnography` — `.txt` с одним числом (вольты) на строку
-- **Адрес сервера**: базовый URL сервиса полисомнографии 
+- Recording folder: custom path or app Documents folder
+- Sampling rate: 100 / 250 / 500 Hz (commands d100, d250, d500)
+- Split interval: file is split by time (default: 20 minutes)
+- Recording format:
+- - .csv — CSV with BLE data and calculated voltage
+- - .txt — same CSV but with .txt extension
+- polysomnography — .txt with one voltage value per line
+- Server address: base URL of the polysomnography service
 
-## Куда сохраняются записи
+## Where Files Are Saved
 
-Корень записей выбирается в настройках. Внутри создаётся структура:
-
+The root folder is selected in settings. Inside, the structure is:
 ```
 <recordings_root>/
   dd.MM.yyyy/
@@ -61,21 +66,22 @@ flutter test
 
 Примечания:
 
-- `<hz>` берётся из выбранной в настройках частоты и используется сервисом полисомнографии при ресемплинге.
-- При ротации по времени создаются новые файлы с новым суффиксом даты/времени.
+Notes:
 
+- <hz> is taken from the selected sampling rate and is used by the polysomnography service.
+- When the file is split by time, new files are created with a new date/time in the name.
 
-## Навигация
+## Navigation
 
-![Схема страниц](assets/PageDiagram.png)
+![Page Diagram](assets/PageDiagram.png)
 
-## Структура проекта
+## Project Structure
 
-Ключевые каталоги:
+Main folders:
 
 ```
 lib/
-  core/        # константы, тема, утилиты
+  core/        # constants, theme, utilities
   features/    # ble, recording, files, polysomnography, settings, navigation
   main.dart
 ```
