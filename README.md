@@ -73,10 +73,6 @@ Notes:
 - <hz> is taken from the selected sampling rate and is used by the polysomnography service.
 - When the file is split by time, new files are created with a new date/time in the name.
 
-## Navigation
-
-![Page Diagram](assets/PageDiagram.png)
-
 ## Project Structure
 
 Main folders:
